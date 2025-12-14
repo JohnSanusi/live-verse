@@ -4,6 +4,7 @@ import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
 import { Sidebar } from "@/components/Sidebar";
 
+import { Loader } from "@/components/Loader";
 import { AppProvider } from "@/context/AppContext";
 
 const geistSans = Geist({
@@ -31,6 +32,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased pb-16 md:pb-0`}
       >
+        <Loader />
         <AppProvider>
           <div className="min-h-screen bg-background text-foreground flex">
             <Sidebar />
