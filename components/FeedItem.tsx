@@ -1,0 +1,138 @@
+import React, { useState } from "react";
+import { Heart, MessageCircle, Share2, MoreHorizontal, Send } from "lucide-react";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Comment, User } from "@/context/AppContext";
+
+interface FeedItemProps {
+  user: User;
+  content: {
+    text: string;
+    image?: string;
+  };
+  stats: {
+    likes: number;
+    comments: number;
+  };
+  liked: boolean;
+  commentsList: Comment[];
+  onLike: () => void;
+  onComment: (text: string) => void;
+}
+
+export const FeedItem = ({ user, content, stats, liked, commentsList, onLike, onComment }: FeedItemProps) => {
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState("");
+
+  const handleCommentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (commentText.trim()) {
+      onComment(commentText);
+      setCommentText("");
+    }
+  };
+
+  return (
+    <Card className="mb-4 border-none bg-secondary/30 p-0">
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-muted overflow-hidden">
+               {user.avatar.length > 2 ? (
+                 <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+               ) : (
+                 <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold">
+                   {user.avatar}
+                 </div>
+               )}
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground">{user.name}</h3>
+              <p className="text-xs text-muted-foreground">2h ago</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full">
+            <MoreHorizontal size={16} />
+          </Button>
+        </div>
+        
+        <p className="text-sm text-foreground/90 mb-3 leading-relaxed">{content.text}</p>
+      </div>
+
+      {content.image && (
+        <div className="relative aspect-video w-full bg-muted overflow-hidden">
+           {content.image.startsWith("http") ? (
+             <img src={content.image} alt="Content" className="w-full h-full object-cover" />
+           ) : (
+             <div className="w-full h-full bg-neutral-900 flex items-center justify-center text-muted-foreground">
+               Image Content
+             </div>
+           )}
+        </div>
+      )}
+
+      <div className="p-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={`gap-2 px-2 ${liked ? "text-red-500 hover:text-red-600" : "hover:text-primary hover:bg-primary/10"}`}
+            onClick={onLike}
+          >
+            <Heart size={18} fill={liked ? "currentColor" : "none"} />
+            <span className="text-xs font-medium">{stats.likes}</span>
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="gap-2 px-2 hover:text-blue-400 hover:bg-blue-400/10"
+            onClick={() => setShowComments(!showComments)}
+          >
+            <MessageCircle size={18} />
+            <span className="text-xs font-medium">{stats.comments}</span>
+          </Button>
+        </div>
+        <Button variant="ghost" size="sm" className="px-2 hover:text-green-400 hover:bg-green-400/10">
+          <Share2 size={18} />
+        </Button>
+      </div>
+
+      {/* Comments Section */}
+      {showComments && (
+        <div className="px-4 pb-4 pt-0 border-t border-border/50">
+          <div className="space-y-3 mt-3 max-h-40 overflow-y-auto">
+            {commentsList.map((comment) => (
+              <div key={comment.id} className="flex gap-2">
+                <div className="h-6 w-6 rounded-full bg-muted overflow-hidden flex-shrink-0">
+                    {comment.user.avatar.length > 2 ? (
+                        <img src={comment.user.avatar} alt={comment.user.name} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full bg-primary/20 flex items-center justify-center text-[10px] text-primary font-bold">
+                            {comment.user.name[0]}
+                        </div>
+                    )}
+                </div>
+                <div className="bg-secondary/50 rounded-lg px-3 py-2 text-xs">
+                    <span className="font-bold block mb-0.5">{comment.user.name}</span>
+                    <p>{comment.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <form onSubmit={handleCommentSubmit} className="mt-3 flex gap-2">
+            <Input 
+                placeholder="Write a comment..." 
+                className="h-9 text-xs" 
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+            />
+            <Button type="submit" size="sm" className="h-9 w-9 p-0 bg-primary text-primary-foreground">
+                <Send size={14} />
+            </Button>
+          </form>
+        </div>
+      )}
+    </Card>
+  );
+};
