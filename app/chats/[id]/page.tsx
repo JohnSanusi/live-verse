@@ -34,6 +34,13 @@ export default function ChatDetailPage() {
     }
   };
 
+  const handleFileAttach = () => {
+    // Mock file attachment
+    const mockFiles = ["Project_Specs.pdf", "Design_v2.fig", "Screenshot.png", "Meeting_Notes.docx"];
+    const randomFile = mockFiles[Math.floor(Math.random() * mockFiles.length)];
+    sendMessage(chatId, `📎 Sent a file: ${randomFile}`);
+  };
+
   if (!chat) return <div className="p-4 text-center">Chat not found</div>;
 
   return (
@@ -68,10 +75,20 @@ export default function ChatDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-9 w-9 p-0 rounded-full"
+            onClick={() => alert("Mock Call: Calling user...")}
+          >
             <Phone size={18} />
           </Button>
-          <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-9 w-9 p-0 rounded-full"
+            onClick={() => alert("Mock Video Call: Starting video call...")}
+          >
             <Video size={18} />
           </Button>
           <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full">
@@ -91,7 +108,13 @@ export default function ChatDetailPage() {
       {/* Input Area */}
       <div className="p-3 border-t border-border bg-background/80 backdrop-blur-lg">
         <form onSubmit={handleSend} className="flex items-center gap-2">
-          <Button type="button" variant="ghost" size="sm" className="h-10 w-10 p-0 rounded-full text-muted-foreground hover:text-primary">
+          <Button 
+            type="button" 
+            variant="ghost" 
+            size="sm" 
+            className="h-10 w-10 p-0 rounded-full text-muted-foreground hover:text-primary"
+            onClick={handleFileAttach}
+          >
             <Paperclip size={20} />
           </Button>
           <div className="flex-1 relative">
@@ -106,6 +129,7 @@ export default function ChatDetailPage() {
               variant="ghost" 
               size="sm" 
               className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-primary"
+              onClick={() => sendMessage(chatId, "🎤 [Voice Message] (0:15)")}
             >
               <Mic size={18} />
             </Button>
