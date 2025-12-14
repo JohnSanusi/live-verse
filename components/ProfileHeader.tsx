@@ -6,10 +6,11 @@ import { User, useApp } from "@/context/AppContext";
 
 interface ProfileHeaderProps {
   user: User;
+  isCurrentUser?: boolean;
 }
 
-export const ProfileHeader = ({ user }: ProfileHeaderProps) => {
-  const { updateProfile } = useApp();
+export const ProfileHeader = ({ user, isCurrentUser = true }: ProfileHeaderProps) => {
+  const { updateProfile, toggleFriend } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user.name);
   const [editBio, setEditBio] = useState(user.bio);
@@ -34,36 +35,51 @@ export const ProfileHeader = ({ user }: ProfileHeaderProps) => {
         <div className="flex justify-between items-end -mt-10 mb-4">
           {/* Avatar */}
           <div className="h-20 w-20 rounded-full border-4 border-background bg-secondary overflow-hidden">
-             <div className="w-full h-full bg-gradient-to-br from-primary to-yellow-600 flex items-center justify-center text-primary-foreground text-2xl font-bold">
-               {user.name[0]}
-             </div>
+             {user.avatar.length > 2 ? (
+                 <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+             ) : (
+                 <div className="w-full h-full bg-gradient-to-br from-primary to-yellow-600 flex items-center justify-center text-primary-foreground text-2xl font-bold">
+                   {user.name[0]}
+                 </div>
+             )}
           </div>
           
           {/* Actions */}
           <div className="flex gap-2 mb-1">
-            {isEditing ? (
-              <>
-                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full bg-green-500/10 text-green-500 hover:bg-green-500/20" onClick={handleSave}>
-                  <Check size={20} />
-                </Button>
-                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500/20" onClick={handleCancel}>
-                  <X size={20} />
-                </Button>
-              </>
+            {isCurrentUser ? (
+              isEditing ? (
+                <>
+                  <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full bg-green-500/10 text-green-500 hover:bg-green-500/20" onClick={handleSave}>
+                    <Check size={20} />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500/20" onClick={handleCancel}>
+                    <X size={20} />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-9 px-3 rounded-full border-primary/50 text-primary hover:bg-primary/10"
+                      onClick={() => setIsEditing(true)}
+                  >
+                    Edit Profile
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full">
+                    <Settings size={20} />
+                  </Button>
+                </>
+              )
             ) : (
-              <>
-                <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-9 px-3 rounded-full border-primary/50 text-primary hover:bg-primary/10"
-                    onClick={() => setIsEditing(true)}
-                >
-                  Edit Profile
-                </Button>
-                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full">
-                  <Settings size={20} />
-                </Button>
-              </>
+              <Button 
+                variant={user.isFriend ? "outline" : "primary"}
+                size="sm" 
+                className={`h-9 px-4 rounded-full ${user.isFriend ? "border-primary/50 text-primary" : "bg-primary text-primary-foreground"}`}
+                onClick={() => toggleFriend(user.id)}
+              >
+                {user.isFriend ? "Friends" : "Add Friend"}
+              </Button>
             )}
           </div>
         </div>

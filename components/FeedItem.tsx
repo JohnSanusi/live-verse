@@ -113,9 +113,21 @@ export const FeedItem = ({ user, content, stats, liked, commentsList, onLike, on
                         </div>
                     )}
                 </div>
-                <div className="bg-secondary/50 rounded-lg px-3 py-2 text-xs">
-                    <span className="font-bold block mb-0.5">{comment.user.name}</span>
-                    <p>{comment.text}</p>
+                <div className="flex-1">
+                  <div className="bg-secondary/50 rounded-lg px-3 py-2 text-xs">
+                      <span className="font-bold block mb-0.5">{comment.user.name}</span>
+                      <p>{comment.text}</p>
+                  </div>
+                  <div className="flex gap-3 mt-1 ml-1">
+                    <button className="text-[10px] font-medium text-muted-foreground hover:text-primary">Like</button>
+                    <button 
+                        className="text-[10px] font-medium text-muted-foreground hover:text-primary"
+                        onClick={() => setCommentText(`@${comment.user.name} `)}
+                    >
+                        Reply
+                    </button>
+                    <span className="text-[10px] text-muted-foreground">2m</span>
+                  </div>
                 </div>
               </div>
             ))}

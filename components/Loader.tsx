@@ -25,24 +25,21 @@ export const Loader = () => {
     >
       <div className="relative flex items-center justify-center">
         {/* Outer Ring */}
-        <div className="h-24 w-24 rounded-full border-t-4 border-b-4 border-primary animate-spin"></div>
+        <div className="h-32 w-32 rounded-full border-t-4 border-b-4 border-primary animate-spin"></div>
         
         {/* Inner Pulse */}
-        <div className="absolute h-16 w-16 rounded-full bg-primary/20 animate-pulse"></div>
+        <div className="absolute h-24 w-24 rounded-full bg-primary/20 animate-pulse"></div>
         
-        {/* Logo/Icon */}
-        <div className="absolute text-3xl font-bold text-primary tracking-tighter">
-          LV
+        {/* Logo Image */}
+        <div className="absolute h-20 w-20 rounded-full overflow-hidden flex items-center justify-center">
+          <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
         </div>
       </div>
       
-      <div className="mt-8 flex flex-col items-center gap-2">
-        <h1 className="text-2xl font-bold text-foreground tracking-widest uppercase">Live-Verse</h1>
-        <div className="flex gap-1">
-          <div className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]"></div>
-          <div className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]"></div>
-          <div className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce"></div>
-        </div>
+      <div className="mt-8 flex gap-1">
+        <div className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]"></div>
+        <div className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]"></div>
+        <div className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce"></div>
       </div>
     </div>
   );

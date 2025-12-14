@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 // --- Types ---
 export interface User {
@@ -9,12 +9,13 @@ export interface User {
   handle: string;
   avatar: string;
   bio: string;
-  status: "online" | "offline" | "away";
   stats: {
     posts: number;
     followers: number;
     following: number;
   };
+  status?: "online" | "offline" | "away";
+  isFriend?: boolean;
 }
 
 export interface Comment {
@@ -68,17 +69,18 @@ export interface FileItem {
 
 interface AppContextType {
   currentUser: User;
-  updateProfile: (data: Partial<User>) => void;
-  
+  users: User[];
   feeds: FeedPost[];
-  toggleLike: (id: number) => void;
-  addComment: (postId: number, text: string) => void;
-  
   chats: Chat[];
-  sendMessage: (chatId: string, text: string) => void;
-  
   files: FileItem[];
-  addFile: () => void; // Mock upload
+  contacts: User[];
+  updateProfile: (data: Partial<User>) => void;
+  toggleLike: (feedId: number) => void;
+  addComment: (feedId: number, text: string) => void;
+  sendMessage: (chatId: string, text: string) => void;
+  addFile: () => void;
+  toggleFriend: (userId: string) => void;
+  addContact: (user: User) => void;
 }
 
 // --- Mock Data Generators ---
@@ -92,7 +94,40 @@ const MOCK_USER: User = {
   stats: { posts: 42, followers: 1250, following: 340 },
 };
 
-const INITIAL_FEEDS: FeedPost[] = [
+const MOCK_USERS: User[] = [
+  {
+    id: "1",
+    name: "Alex Johnson",
+    handle: "alex_j",
+    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
+    bio: "UI/UX Designer | Art Enthusiast",
+    stats: { posts: 12, followers: 450, following: 210 },
+    status: "online",
+    isFriend: true,
+  },
+  {
+    id: "2",
+    name: "Sarah Williams",
+    handle: "sarah_w",
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
+    bio: "Frontend Dev | Coffee Lover ☕",
+    stats: { posts: 28, followers: 890, following: 400 },
+    status: "offline",
+    isFriend: false,
+  },
+  {
+    id: "3",
+    name: "Mike Chen",
+    handle: "mike_c",
+    avatar: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=150&h=150&fit=crop",
+    bio: "Tech Lead | Open Source Contributor",
+    stats: { posts: 54, followers: 1200, following: 560 },
+    status: "away",
+    isFriend: false,
+  },
+];
+
+const MOCK_FEEDS: FeedPost[] = [
   {
     id: 1,
     user: { ...MOCK_USER, id: "u1", name: "Alex Johnson", avatar: "A", handle: "alex_j" },
@@ -131,7 +166,7 @@ const INITIAL_FEEDS: FeedPost[] = [
   },
 ];
 
-const INITIAL_CHATS: Chat[] = [
+const MOCK_CHATS: Chat[] = [
   {
     id: "1",
     user: { ...MOCK_USER, id: "u1", name: "Alex Johnson", avatar: "A", status: "online" },
@@ -152,7 +187,7 @@ const INITIAL_CHATS: Chat[] = [
   },
 ];
 
-const INITIAL_FILES: FileItem[] = [
+const MOCK_FILES: FileItem[] = [
   { id: "1", name: "Project Assets", type: "folder", items: 12, date: "Oct 24" },
   { id: "2", name: "Documents", type: "folder", items: 8, date: "Oct 22" },
   { id: "3", name: "Design_Mockup_v2.png", type: "image", size: "2.4 MB", date: "Yesterday" },
@@ -162,20 +197,32 @@ const INITIAL_FILES: FileItem[] = [
 // --- Context ---
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider = ({ children }: { children: React.ReactNode }) => {
-  const [currentUser, setCurrentUser] = useState<User>(MOCK_USER);
-  const [feeds, setFeeds] = useState<FeedPost[]>(INITIAL_FEEDS);
-  const [chats, setChats] = useState<Chat[]>(INITIAL_CHATS);
-  const [files, setFiles] = useState<FileItem[]>(INITIAL_FILES);
+export const AppProvider = ({ children }: { children: ReactNode }) => {
+  const [currentUser, setCurrentUser] = useState<User>({
+    id: "0",
+    name: "Zen Master",
+    handle: "zen_master",
+    avatar: "Z",
+    bio: "Digital explorer & code artisan. Building the future of messaging with Live-Verse. 🚀 #coding #react #nextjs",
+    stats: {
+      posts: 42,
+      followers: 1250,
+      following: 340,
+    },
+  });
+  const [users, setUsers] = useState<User[]>(MOCK_USERS);
+  const [feeds, setFeeds] = useState<FeedPost[]>(MOCK_FEEDS);
+  const [chats, setChats] = useState<Chat[]>(MOCK_CHATS);
+  const [files, setFiles] = useState<FileItem[]>(MOCK_FILES);
 
   const updateProfile = (data: Partial<User>) => {
     setCurrentUser((prev) => ({ ...prev, ...data }));
   };
 
-  const toggleLike = (id: number) => {
+  const toggleLike = (feedId: number) => {
     setFeeds((prev) =>
       prev.map((post) =>
-        post.id === id
+        post.id === feedId
           ? {
               ...post,
               liked: !post.liked,
@@ -186,10 +233,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     );
   };
 
-  const addComment = (postId: number, text: string) => {
+  const addComment = (feedId: number, text: string) => {
     setFeeds((prev) =>
         prev.map((post) => {
-            if (post.id === postId) {
+            if (post.id === feedId) {
                 const newComment: Comment = {
                     id: Date.now().toString(),
                     user: currentUser,
@@ -239,18 +286,36 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setFiles((prev) => [newFile, ...prev]);
   };
 
+  const [contacts, setContacts] = useState<User[]>([]);
+
+  const addContact = (user: User) => {
+    if (!contacts.find(c => c.id === user.id)) {
+      setContacts(prev => [...prev, user]);
+    }
+  };
+
+  const toggleFriend = (userId: string) => {
+    setUsers(prev => prev.map(user => 
+      user.id === userId ? { ...user, isFriend: !user.isFriend } : user
+    ));
+  };
+
   return (
     <AppContext.Provider
       value={{
         currentUser,
-        updateProfile,
+        users,
         feeds,
+        chats,
+        files,
+        contacts,
+        updateProfile,
         toggleLike,
         addComment,
-        chats,
         sendMessage,
-        files,
         addFile,
+        toggleFriend,
+        addContact
       }}
     >
       {children}
