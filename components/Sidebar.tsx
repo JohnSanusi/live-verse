@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, MessageCircle, FileText, User, Settings, LogOut, Video, ShoppingBag } from "lucide-react";
+import { Home, MessageCircle, FileText, User, Settings, LogOut, Video, ShoppingBag, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useApp } from "@/context/AppContext";
 
@@ -15,6 +15,7 @@ export const Sidebar = () => {
     { href: "/reels", icon: Video, label: "Reels" },
     { href: "/chats", icon: MessageCircle, label: "Chats" },
     { href: "/marketplace", icon: ShoppingBag, label: "Marketplace" },
+    { href: "/wallet", icon: Wallet, label: "Wallet" },
     { href: "/files", icon: FileText, label: "Files" },
     { href: "/profile", icon: User, label: "Profile" },
   ];

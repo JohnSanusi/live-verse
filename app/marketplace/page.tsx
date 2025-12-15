@@ -198,7 +198,7 @@ export default function MarketplacePage() {
         </div>
 
         {/* Products Grid */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
           {filteredProducts.map((product) => (
             <Card key={product.id} className="p-0 overflow-hidden border-none bg-secondary/30">
               <div className="aspect-square bg-muted overflow-hidden">
@@ -208,12 +208,12 @@ export default function MarketplacePage() {
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div className="p-3">
-                <h3 className="font-semibold text-sm mb-1 line-clamp-1">{product.name}</h3>
-                <p className="text-xs text-muted-foreground mb-2">{product.seller}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-primary font-bold">{product.price}</span>
-                  <Button size="sm" className="h-7 px-3 text-xs rounded-full bg-primary text-primary-foreground">
+              <div className="p-2 md:p-3">
+                <h3 className="font-semibold text-xs md:text-sm mb-1 line-clamp-1">{product.name}</h3>
+                <p className="text-[10px] md:text-xs text-muted-foreground mb-2">{product.seller}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-primary font-bold text-sm md:text-base">{product.price}</span>
+                  <Button size="sm" className="h-6 md:h-7 px-2 md:px-3 text-[10px] md:text-xs rounded-full bg-primary text-primary-foreground">
                     Buy
                   </Button>
                 </div>

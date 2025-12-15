@@ -16,6 +16,8 @@ export interface User {
   };
   status?: "online" | "offline" | "away";
   isFriend?: boolean;
+  coins?: number;
+  diamonds?: number;
 }
 
 export interface Comment {
@@ -67,6 +69,23 @@ export interface FileItem {
   date: string;
 }
 
+export interface Gift {
+  id: string;
+  name: string;
+  emoji: string;
+  cost: number;
+}
+
+export const GIFT_TYPES: Gift[] = [
+  { id: "rose", name: "Rose", emoji: "🌹", cost: 1 },
+  { id: "heart", name: "Heart", emoji: "❤️", cost: 5 },
+  { id: "star", name: "Star", emoji: "⭐", cost: 10 },
+  { id: "trophy", name: "Trophy", emoji: "🏆", cost: 50 },
+  { id: "diamond", name: "Diamond", emoji: "💎", cost: 100 },
+  { id: "crown", name: "Crown", emoji: "👑", cost: 500 },
+  { id: "rocket", name: "Rocket", emoji: "🚀", cost: 1000 },
+];
+
 interface AppContextType {
   currentUser: User;
   users: User[];
@@ -88,6 +107,8 @@ interface AppContextType {
   createPost: (text: string, image?: string) => void;
   createReel: (caption: string, video: string) => void;
   createMarketplaceItem: (name: string, price: string, image: string, category: string) => void;
+  purchaseCoins: (amount: number) => void;
+  sendGift: (recipientId: string, giftId: string) => void;
 }
 
 // --- Mock Data Generators ---
@@ -211,12 +232,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     name: "Zen Master",
     handle: "zen_master",
     avatar: "Z",
-    bio: "Digital explorer & code artisan. Building the future of messaging with Live-Verse. 🚀 #coding #react #nextjs",
+    bio: "Digital explorer & code artisan. Building the future of messaging with Void. 🚀 #coding #react #nextjs",
     stats: {
       posts: 42,
       followers: 1250,
       following: 340,
     },
+    coins: 100,
+    diamonds: 0,
   });
   const [users, setUsers] = useState<User[]>(MOCK_USERS);
   const [feeds, setFeeds] = useState<FeedPost[]>(MOCK_FEEDS);
@@ -423,6 +446,48 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     console.log("Marketplace item created:", { name, price, image, category });
   };
 
+  const purchaseCoins = (amount: number) => {
+    const updatedUser = {
+      ...currentUser,
+      coins: (currentUser.coins || 0) + amount
+    };
+    setCurrentUser(updatedUser);
+    localStorage.setItem("userData", JSON.stringify(updatedUser));
+  };
+
+  const sendGift = (recipientId: string, giftId: string) => {
+    const gift = GIFT_TYPES.find(g => g.id === giftId);
+    if (!gift) return;
+
+    const userCoins = currentUser.coins || 0;
+    if (userCoins < gift.cost) {
+      alert("Insufficient coins! Please purchase more coins.");
+      return;
+    }
+
+    // Deduct coins from sender
+    const updatedUser = {
+      ...currentUser,
+      coins: userCoins - gift.cost
+    };
+    setCurrentUser(updatedUser);
+    localStorage.setItem("userData", JSON.stringify(updatedUser));
+
+    // Add diamonds to recipient (conversion: 10 coins = 1 diamond)
+    setUsers(prev => prev.map(user => {
+      if (user.id === recipientId) {
+        return {
+          ...user,
+          diamonds: (user.diamonds || 0) + Math.floor(gift.cost / 10)
+        };
+      }
+      return user;
+    }));
+
+    // Show success message
+    alert(`${gift.emoji} ${gift.name} sent!`);
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -445,7 +510,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         logout,
         createPost,
         createReel,
-        createMarketplaceItem
+        createMarketplaceItem,
+        purchaseCoins,
+        sendGift
       }}
     >
       {children}

@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Heart, MessageCircle, Share2, Send } from "lucide-react";
+import { Heart, MessageCircle, Share2, Send, Gift } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FeedPost, Comment } from "@/context/AppContext";
+import { GiftPicker } from "@/components/GiftPicker";
+import { useApp } from "@/context/AppContext";
 import Link from "next/link";
 
 interface FeedItemProps extends FeedPost {
@@ -15,6 +17,8 @@ interface FeedItemProps extends FeedPost {
 export const FeedItem = ({ id, user, content, stats, liked, commentsList, onLike, onComment }: FeedItemProps) => {
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
+  const [showGiftPicker, setShowGiftPicker] = useState(false);
+  const { currentUser, sendGift } = useApp();
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +26,10 @@ export const FeedItem = ({ id, user, content, stats, liked, commentsList, onLike
       onComment(commentText);
       setCommentText("");
     }
+  };
+
+  const handleSendGift = (giftId: string) => {
+    sendGift(user.id, giftId);
   };
 
   return (
@@ -62,7 +70,7 @@ export const FeedItem = ({ id, user, content, stats, liked, commentsList, onLike
       )}
 
       <div className="p-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <Button 
             variant="ghost" 
             size="sm" 
@@ -80,6 +88,14 @@ export const FeedItem = ({ id, user, content, stats, liked, commentsList, onLike
           >
             <MessageCircle size={18} />
             <span className="text-xs font-medium">{stats.comments}</span>
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="gap-2 px-2 hover:text-primary hover:bg-primary/10"
+            onClick={() => setShowGiftPicker(true)}
+          >
+            <Gift size={18} />
           </Button>
         </div>
         <Button variant="ghost" size="sm" className="px-2 hover:text-green-400 hover:bg-green-400/10">
@@ -137,6 +153,15 @@ export const FeedItem = ({ id, user, content, stats, liked, commentsList, onLike
             </Button>
           </form>
         </div>
+      )}
+
+      {/* Gift Picker */}
+      {showGiftPicker && (
+        <GiftPicker
+          onClose={() => setShowGiftPicker(false)}
+          onSendGift={handleSendGift}
+          userCoins={currentUser.coins || 0}
+        />
       )}
     </div>
   );
