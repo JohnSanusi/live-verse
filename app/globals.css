@@ -12,8 +12,18 @@
   --accent: #ffd700;
   --accent-foreground: #000000;
   --border: #333333;
+  --radius: 0.5rem;
 }
 
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

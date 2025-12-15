@@ -1,27 +1,18 @@
+"use client";
+
 import React, { useState } from "react";
-import { Heart, MessageCircle, Share2, MoreHorizontal, Send } from "lucide-react";
-import { Card } from "@/components/ui/Card";
+import { Heart, MessageCircle, Share2, Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Comment, User } from "@/context/AppContext";
+import { FeedPost, Comment } from "@/context/AppContext";
+import Link from "next/link";
 
-interface FeedItemProps {
-  user: User;
-  content: {
-    text: string;
-    image?: string;
-  };
-  stats: {
-    likes: number;
-    comments: number;
-  };
-  liked: boolean;
-  commentsList: Comment[];
+interface FeedItemProps extends FeedPost {
   onLike: () => void;
   onComment: (text: string) => void;
 }
 
-export const FeedItem = ({ user, content, stats, liked, commentsList, onLike, onComment }: FeedItemProps) => {
+export const FeedItem = ({ id, user, content, stats, liked, commentsList, onLike, onComment }: FeedItemProps) => {
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
 
@@ -34,29 +25,27 @@ export const FeedItem = ({ user, content, stats, liked, commentsList, onLike, on
   };
 
   return (
-    <Card className="mb-4 border-none bg-secondary/30 p-0">
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-muted overflow-hidden">
-               {user.avatar.length > 2 ? (
-                 <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-               ) : (
-                 <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold">
-                   {user.avatar}
-                 </div>
-               )}
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground">{user.name}</h3>
-              <p className="text-xs text-muted-foreground">2h ago</p>
-            </div>
+    <div className="bg-card border-b border-border">
+      {/* Header */}
+      <div className="flex items-center gap-3 p-4">
+        <Link href={`/profile/${user.id}`} className="flex items-center gap-3 flex-1 hover:opacity-80 transition-opacity">
+          <div className="h-10 w-10 rounded-full bg-muted overflow-hidden flex-shrink-0">
+            {user.avatar.length > 2 ? (
+              <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-primary to-yellow-600 flex items-center justify-center text-primary-foreground font-bold">
+                {user.name[0]}
+              </div>
+            )}
           </div>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full">
-            <MoreHorizontal size={16} />
-          </Button>
-        </div>
-        
+          <div className="flex-1">
+            <h3 className="font-bold text-sm">{user.name}</h3>
+            <p className="text-xs text-muted-foreground">@{user.handle}</p>
+          </div>
+        </Link>
+      </div>
+      
+      <div className="px-4">  
         <p className="text-sm text-foreground/90 mb-3 leading-relaxed">{content.text}</p>
       </div>
 
@@ -102,17 +91,19 @@ export const FeedItem = ({ user, content, stats, liked, commentsList, onLike, on
       {showComments && (
         <div className="px-4 pb-4 pt-0 border-t border-border/50">
           <div className="space-y-3 mt-3 max-h-40 overflow-y-auto">
-            {commentsList.map((comment) => (
+            {commentsList.map((comment: Comment) => (
               <div key={comment.id} className="flex gap-2">
-                <div className="h-6 w-6 rounded-full bg-muted overflow-hidden flex-shrink-0">
-                    {comment.user.avatar.length > 2 ? (
-                        <img src={comment.user.avatar} alt={comment.user.name} className="w-full h-full object-cover" />
-                    ) : (
-                        <div className="w-full h-full bg-primary/20 flex items-center justify-center text-[10px] text-primary font-bold">
-                            {comment.user.name[0]}
-                        </div>
-                    )}
-                </div>
+                <Link href={`/profile/${comment.user.id}`} className="flex-shrink-0">
+                  <div className="h-6 w-6 rounded-full bg-muted overflow-hidden flex items-center justify-center hover:opacity-80 transition-opacity">
+                      {comment.user.avatar.length > 2 ? (
+                          <img src={comment.user.avatar} alt={comment.user.name} className="w-full h-full object-cover" />
+                      ) : (
+                          <div className="w-full h-full bg-primary/20 flex items-center justify-center text-[10px] text-primary font-bold">
+                              {comment.user.name[0]}
+                          </div>
+                      )}
+                  </div>
+                </Link>
                 <div className="flex-1">
                   <div className="bg-secondary/50 rounded-lg px-3 py-2 text-xs">
                       <span className="font-bold block mb-0.5">{comment.user.name}</span>
@@ -147,6 +138,6 @@ export const FeedItem = ({ user, content, stats, liked, commentsList, onLike, on
           </form>
         </div>
       )}
-    </Card>
+    </div>
   );
 };
