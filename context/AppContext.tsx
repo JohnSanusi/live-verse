@@ -74,6 +74,7 @@ interface AppContextType {
   chats: Chat[];
   files: FileItem[];
   contacts: User[];
+  isAuthenticated: boolean;
   updateProfile: (data: Partial<User>) => void;
   toggleLike: (feedId: number) => void;
   addComment: (feedId: number, text: string) => void;
@@ -81,6 +82,12 @@ interface AppContextType {
   addFile: () => void;
   toggleFriend: (userId: string) => void;
   addContact: (user: User) => void;
+  login: (email: string, password: string) => boolean;
+  signup: (name: string, email: string, password: string) => boolean;
+  logout: () => void;
+  createPost: (text: string, image?: string) => void;
+  createReel: (caption: string, video: string) => void;
+  createMarketplaceItem: (name: string, price: string, image: string, category: string) => void;
 }
 
 // --- Mock Data Generators ---
@@ -198,6 +205,7 @@ const MOCK_FILES: FileItem[] = [
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User>({
     id: "0",
     name: "Zen Master",
@@ -214,9 +222,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [feeds, setFeeds] = useState<FeedPost[]>(MOCK_FEEDS);
   const [chats, setChats] = useState<Chat[]>(MOCK_CHATS);
   const [files, setFiles] = useState<FileItem[]>(MOCK_FILES);
+  const [contacts, setContacts] = useState<User[]>([]);
+
+  // Check auth on mount
+  useEffect(() => {
+    const authToken = localStorage.getItem("authToken");
+    const userData = localStorage.getItem("userData");
+    if (authToken && userData) {
+      setIsAuthenticated(true);
+      setCurrentUser(JSON.parse(userData));
+    }
+  }, []);
 
   const updateProfile = (data: Partial<User>) => {
-    setCurrentUser((prev) => ({ ...prev, ...data }));
+    const updated = { ...currentUser, ...data };
+    setCurrentUser(updated);
+    localStorage.setItem("userData", JSON.stringify(updated));
   };
 
   const toggleLike = (feedId: number) => {
@@ -286,8 +307,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setFiles((prev) => [newFile, ...prev]);
   };
 
-  const [contacts, setContacts] = useState<User[]>([]);
-
   const addContact = (user: User) => {
     if (!contacts.find(c => c.id === user.id)) {
       setContacts(prev => [...prev, user]);
@@ -300,6 +319,110 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     ));
   };
 
+  const login = (email: string, password: string): boolean => {
+    const storedUsers = localStorage.getItem("registeredUsers");
+    if (storedUsers) {
+      const users = JSON.parse(storedUsers);
+      const user = users.find((u: any) => u.email === email && u.password === password);
+      if (user) {
+        localStorage.setItem("authToken", "mock-token-" + Date.now());
+        localStorage.setItem("userData", JSON.stringify({
+          id: user.id,
+          name: user.name,
+          handle: user.handle || user.email.split('@')[0],
+          avatar: user.avatar || user.name[0],
+          bio: user.bio || "Live-Verse user",
+          stats: user.stats || { posts: 0, followers: 0, following: 0 }
+        }));
+        setCurrentUser({
+          id: user.id,
+          name: user.name,
+          handle: user.handle || user.email.split('@')[0],
+          avatar: user.avatar || user.name[0],
+          bio: user.bio || "Live-Verse user",
+          stats: user.stats || { posts: 0, followers: 0, following: 0 }
+        });
+        setIsAuthenticated(true);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const signup = (name: string, email: string, password: string): boolean => {
+    const storedUsers = localStorage.getItem("registeredUsers");
+    const users = storedUsers ? JSON.parse(storedUsers) : [];
+    
+    if (users.find((u: any) => u.email === email)) {
+      return false;
+    }
+
+    const newUser = {
+      id: Date.now().toString(),
+      name,
+      email,
+      password,
+      handle: email.split('@')[0],
+      avatar: name[0],
+      bio: "Live-Verse user",
+      stats: { posts: 0, followers: 0, following: 0 }
+    };
+
+    users.push(newUser);
+    localStorage.setItem("registeredUsers", JSON.stringify(users));
+    
+    localStorage.setItem("authToken", "mock-token-" + Date.now());
+    localStorage.setItem("userData", JSON.stringify({
+      id: newUser.id,
+      name: newUser.name,
+      handle: newUser.handle,
+      avatar: newUser.avatar,
+      bio: newUser.bio,
+      stats: newUser.stats
+    }));
+    
+    setCurrentUser({
+      id: newUser.id,
+      name: newUser.name,
+      handle: newUser.handle,
+      avatar: newUser.avatar,
+      bio: newUser.bio,
+      stats: newUser.stats
+    });
+    setIsAuthenticated(true);
+    return true;
+  };
+
+  const logout = () => {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userData");
+    setIsAuthenticated(false);
+  };
+
+  const createPost = (text: string, image?: string) => {
+    const newPost: FeedPost = {
+      id: Date.now(),
+      user: currentUser,
+      content: { text, image },
+      stats: { likes: 0, comments: 0 },
+      liked: false,
+      commentsList: []
+    };
+    setFeeds(prev => [newPost, ...prev]);
+  };
+
+  const createReel = (caption: string, video: string) => {
+    // In a real app, this would add to a reels collection
+    // For now, we'll just show a success message
+    console.log("Reel created:", { caption, video });
+  };
+
+  const createMarketplaceItem = (name: string, price: string, image: string, category: string) => {
+    // In a real app, this would add to a marketplace collection
+    // For now, we'll just show a success message
+    console.log("Marketplace item created:", { name, price, image, category });
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -309,13 +432,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         chats,
         files,
         contacts,
+        isAuthenticated,
         updateProfile,
         toggleLike,
         addComment,
         sendMessage,
         addFile,
         toggleFriend,
-        addContact
+        addContact,
+        login,
+        signup,
+        logout,
+        createPost,
+        createReel,
+        createMarketplaceItem
       }}
     >
       {children}

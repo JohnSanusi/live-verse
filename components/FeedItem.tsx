@@ -119,7 +119,9 @@ export const FeedItem = ({ user, content, stats, liked, commentsList, onLike, on
                       <p>{comment.text}</p>
                   </div>
                   <div className="flex gap-3 mt-1 ml-1">
-                    <button className="text-[10px] font-medium text-muted-foreground hover:text-primary">Like</button>
+                    <button className="text-[10px] font-medium text-muted-foreground hover:text-primary flex items-center gap-1">
+                      <Heart size={12} />
+                    </button>
                     <button 
                         className="text-[10px] font-medium text-muted-foreground hover:text-primary"
                         onClick={() => setCommentText(`@${comment.user.name} `)}

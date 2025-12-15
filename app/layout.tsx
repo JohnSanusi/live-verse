@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 
 import { Loader } from "@/components/Loader";
 import { AppProvider } from "@/context/AppContext";
+import AuthGuard from "@/components/AuthGuard";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,8 +19,21 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Live-Verse",
+  title: "Void",
   description: "A modern social messaging platform",
+  manifest: "/manifest.json",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
+  themeColor: "#FFD700",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Void",
+  },
 };
 
 export default function RootLayout({
@@ -34,17 +48,25 @@ export default function RootLayout({
       >
         <Loader />
         <AppProvider>
-          <div className="min-h-screen bg-background text-foreground flex">
-            <Sidebar />
-            <main className="flex-1 md:ml-64 w-full">
-               <div className="max-w-3xl mx-auto w-full min-h-screen border-x border-border/50 shadow-2xl shadow-black">
-                  {children}
-               </div>
-            </main>
-            <BottomNav />
-          </div>
+          <AuthGuard>
+            <MainLayout>{children}</MainLayout>
+          </AuthGuard>
         </AppProvider>
       </body>
     </html>
+  );
+}
+
+function MainLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-background text-foreground flex">
+      <Sidebar />
+      <main className="flex-1 md:ml-64 w-full">
+         <div className="max-w-3xl mx-auto w-full min-h-screen border-x border-border/50 shadow-2xl shadow-black">
+            {children}
+         </div>
+      </main>
+      <BottomNav />
+    </div>
   );
 }

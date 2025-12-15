@@ -1,71 +1,96 @@
-
 "use client";
 
 import React, { useState } from "react";
-import { Header } from "@/components/Header";
 import { FeedItem } from "@/components/FeedItem";
-import { Bell, Search } from "lucide-react";
+import { Header } from "@/components/Header";
+import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { useApp } from "@/context/AppContext";
 
-const TRENDING_TOPICS = [
-  { id: 1, tag: "#LiveVerse", posts: "1.2k posts" },
-  { id: 2, tag: "#Design", posts: "850 posts" },
-  { id: 3, tag: "#Tech", posts: "500 posts" },
-  { id: 4, tag: "#NextJS", posts: "320 posts" },
-  { id: 5, tag: "#React", posts: "210 posts" },
-];
+export default function FeedsPage() {
+  const { feeds, toggleLike, addComment, createPost } = useApp();
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [postText, setPostText] = useState("");
+  const [postImage, setPostImage] = useState("");
 
-export default function Home() {
-  const { feeds, toggleLike, addComment } = useApp();
+  const handleCreatePost = () => {
+    if (postText.trim()) {
+      createPost(postText, postImage || undefined);
+      setPostText("");
+      setPostImage("");
+      setShowCreatePost(false);
+    }
+  };
 
   return (
     <div className="pb-20">
       <Header 
         title="Feed" 
         action={
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full">
-              <Search size={20} />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full">
-              <Bell size={20} />
-            </Button>
-          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-9 w-9 p-0 rounded-full"
+            onClick={() => setShowCreatePost(true)}
+          >
+            <Plus size={20} />
+          </Button>
         } 
       />
       
-      <main className="p-4 space-y-6">
-        {/* Trending Section */}
-        <section>
-          <h2 className="text-sm font-bold text-muted-foreground mb-3 uppercase tracking-wider">Trending</h2>
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            {TRENDING_TOPICS.map((topic) => (
-              <div 
-                key={topic.id} 
-                className="flex-shrink-0 bg-secondary/50 border border-border rounded-xl p-3 min-w-[120px]"
+      {/* Create Post Modal */}
+      {showCreatePost && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-background border border-border rounded-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Create Post</h2>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 rounded-full"
+                onClick={() => setShowCreatePost(false)}
               >
-                <p className="font-bold text-primary">{topic.tag}</p>
-                <p className="text-xs text-muted-foreground">{topic.posts}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Feed Section */}
-        <section>
-          <h2 className="text-sm font-bold text-muted-foreground mb-3 uppercase tracking-wider">Recent Activity</h2>
-          <div className="space-y-4">
-            {feeds.map((feed) => (
-              <FeedItem 
-                key={feed.id} 
-                {...feed} 
-                onLike={() => toggleLike(feed.id)}
-                onComment={(text) => addComment(feed.id, text)}
+                <X size={20} />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <textarea
+                placeholder="What's on your mind?"
+                className="w-full bg-secondary/50 border border-border rounded-lg p-3 min-h-[120px] resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                value={postText}
+                onChange={(e) => setPostText(e.target.value)}
               />
-            ))}
+              
+              <Input
+                placeholder="Image URL (optional)"
+                className="bg-secondary/50 border-border"
+                value={postImage}
+                onChange={(e) => setPostImage(e.target.value)}
+              />
+              
+              <Button 
+                className="w-full bg-primary text-primary-foreground"
+                onClick={handleCreatePost}
+                disabled={!postText.trim()}
+              >
+                Post
+              </Button>
+            </div>
           </div>
-        </section>
+        </div>
+      )}
+
+      <main className="space-y-4">
+        {feeds.map((feed) => (
+          <FeedItem 
+            key={feed.id} 
+            {...feed} 
+            onLike={() => toggleLike(feed.id)}
+            onComment={(text) => addComment(feed.id, text)}
+          />
+        ))}
       </main>
     </div>
   );

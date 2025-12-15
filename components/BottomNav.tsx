@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, MessageSquare, Folder, User } from "lucide-react";
+import { Home, MessageCircle, FileText, User, Video } from "lucide-react";
 
 export const BottomNav = () => {
   const pathname = usePathname();
 
   const navItems = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/chats", label: "Chats", icon: MessageSquare },
-    { href: "/files", label: "Files", icon: Folder },
-    { href: "/profile", label: "Profile", icon: User },
+    { href: "/", icon: Home, label: "Home" },
+    { href: "/reels", icon: Video, label: "Reels" },
+    { href: "/chats", icon: MessageCircle, label: "Chats" },
+    { href: "/files", icon: FileText, label: "Files" },
+    { href: "/profile", icon: User, label: "Profile" },
   ];
 
   return (
