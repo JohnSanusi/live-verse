@@ -66,8 +66,11 @@ export interface Status {
     type: "image" | "video";
     url: string;
     duration: number;
+    content?: string;
   }[];
   isUnseen: boolean;
+  likes?: string[];
+  replies?: { userId: string; text: string; time: string }[];
 }
 
 export interface Chat {
@@ -114,6 +117,8 @@ interface AppContextType {
   addContact: (user: User) => void;
   markStatusAsSeen: (statusId: string) => void;
   addStatus: (items: Status["items"]) => void;
+  toggleStatusLike: (statusId: string) => void;
+  replyToStatus: (statusId: string, text: string) => void;
   toggleArchiveChat: (chatId: string) => void;
   createGroupChat: (name: string, memberIds: string[]) => void;
   login: (email: string, password: string) => boolean;
@@ -127,6 +132,12 @@ interface AppContextType {
     image: string,
     category: string
   ) => void;
+  settings: {
+    notifications: boolean;
+    privacy: "public" | "private";
+    darkMode: boolean;
+  };
+  updateSettings: (settings: Partial<AppContextType["settings"]>) => void;
 }
 
 // --- Mock Data Generators ---
@@ -389,6 +400,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [files, setFiles] = useState<FileItem[]>(MOCK_FILES);
   const [contacts, setContacts] = useState<User[]>([]);
   const [statuses, setStatuses] = useState<Status[]>(MOCK_STATUSES);
+  const [settings, setSettings] = useState<{
+    notifications: boolean;
+    privacy: "public" | "private";
+    darkMode: boolean;
+  }>({
+    notifications: true,
+    privacy: "public",
+    darkMode: true,
+  });
 
   // Check auth on mount
   useEffect(() => {
@@ -479,13 +499,78 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addStatus = (items: Status["items"]) => {
-    const newStatus: Status = {
-      id: Date.now().toString(),
-      user: currentUser,
-      items,
-      isUnseen: false,
-    };
-    setStatuses((prev) => [newStatus, ...prev]);
+    setStatuses((prev) => {
+      const existingStatusIndex = prev.findIndex(
+        (s) => s.user.id === currentUser.id
+      );
+
+      if (existingStatusIndex !== -1) {
+        const newStatuses = [...prev];
+        newStatuses[existingStatusIndex] = {
+          ...newStatuses[existingStatusIndex],
+          items: [...newStatuses[existingStatusIndex].items, ...items],
+          isUnseen: false,
+        };
+        return newStatuses;
+      }
+
+      const newStatus: Status = {
+        id: Date.now().toString(),
+        user: currentUser,
+        items,
+        isUnseen: false,
+        likes: [],
+        replies: [],
+      };
+      return [newStatus, ...prev];
+    });
+  };
+
+  const toggleStatusLike = (statusId: string) => {
+    setStatuses((prev) =>
+      prev.map((s) => {
+        if (s.id === statusId) {
+          const likes = s.likes || [];
+          const liked = likes.includes(currentUser.id);
+          return {
+            ...s,
+            likes: liked
+              ? likes.filter((id) => id !== currentUser.id)
+              : [...likes, currentUser.id],
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const replyToStatus = (statusId: string, text: string) => {
+    setStatuses((prev) =>
+      prev.map((s) => {
+        if (s.id === statusId) {
+          const replies = s.replies || [];
+          return {
+            ...s,
+            replies: [
+              ...replies,
+              {
+                userId: currentUser.id,
+                text,
+                time: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              },
+            ],
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const updateSettings = (newSettings: Partial<typeof settings>) => {
+    setSettings((prev) => ({ ...prev, ...newSettings }));
   };
 
   const toggleArchiveChat = (chatId: string) => {
@@ -698,6 +783,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         addContact,
         markStatusAsSeen,
         addStatus,
+        toggleStatusLike,
+        replyToStatus,
         toggleArchiveChat,
         createGroupChat,
         login,
@@ -706,6 +793,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         createPost,
         createReel,
         createMarketplaceItem,
+        settings,
+        updateSettings,
       }}
     >
       {children}

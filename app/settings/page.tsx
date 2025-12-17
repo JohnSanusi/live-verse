@@ -16,8 +16,8 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/ui/Toast";
 
 export default function SettingsPage() {
-  const { currentUser, logout } = useApp();
-  const { confirm } = useToast();
+  const { currentUser, logout, settings, updateSettings } = useApp();
+  const { confirm, showToast } = useToast();
 
   const handleLogout = () => {
     confirm({
@@ -30,31 +30,75 @@ export default function SettingsPage() {
     });
   };
 
+  const toggleNotification = () => {
+    updateSettings({ notifications: !settings.notifications });
+    showToast(
+      `Notifications ${!settings.notifications ? "enabled" : "disabled"}`,
+      "info"
+    );
+  };
+
+  const toggleDarkMode = () => {
+    updateSettings({ darkMode: !settings.darkMode });
+    showToast(`${!settings.darkMode ? "Dark Mode" : "Light Mode"} set`, "info");
+  };
+
+  const cyclePrivacy = () => {
+    const nextPrivacy = settings.privacy === "public" ? "private" : "public";
+    updateSettings({ privacy: nextPrivacy });
+    showToast(`Account is now ${nextPrivacy}`, "info");
+  };
+
   const SETTINGS_SECTIONS = [
     {
       title: "Account",
       items: [
-        { icon: User, label: "Edit Profile", value: currentUser.name },
-        { icon: Shield, label: "Security", value: "Password, 2FA" },
+        {
+          icon: User,
+          label: "Edit Profile",
+          value: currentUser.name,
+          action: () => (window.location.href = `/profile`),
+        },
+        {
+          icon: Shield,
+          label: "Privacy",
+          value:
+            settings.privacy.charAt(0).toUpperCase() +
+            settings.privacy.slice(1),
+          action: cyclePrivacy,
+        },
       ],
     },
     {
       title: "Preferences",
       items: [
-        { icon: Bell, label: "Notifications", value: "On" },
-        { icon: Moon, label: "Appearance", value: "Dark Mode" },
+        {
+          icon: Bell,
+          label: "Notifications",
+          value: settings.notifications ? "On" : "Off",
+          action: toggleNotification,
+        },
+        {
+          icon: Moon,
+          label: "Appearance",
+          value: settings.darkMode ? "Dark Mode" : "Light Mode",
+          action: toggleDarkMode,
+        },
       ],
     },
   ];
 
   return (
-    <div className="pb-20">
+    <div className="pb-20 min-h-screen bg-background">
       <Header title="Settings" />
 
-      <main className="p-4 space-y-6">
+      <main className="p-4 space-y-6 max-w-2xl mx-auto">
         {/* Profile Card */}
-        <div className="bg-secondary/30 rounded-2xl p-4 flex items-center gap-4 border border-border/50">
-          <div className="h-16 w-16 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-2xl border-2 border-primary/30 overflow-hidden">
+        <button
+          onClick={() => (window.location.href = `/profile`)}
+          className="w-full bg-secondary/30 rounded-3xl p-5 flex items-center gap-4 border border-border/50 hover:bg-secondary/50 transition-all active-scale"
+        >
+          <div className="h-20 w-20 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-3xl border-2 border-primary/30 overflow-hidden shadow-inner">
             {currentUser.avatar.length > 2 ? (
               <img
                 src={currentUser.avatar}
@@ -65,47 +109,50 @@ export default function SettingsPage() {
               currentUser.avatar
             )}
           </div>
-          <div className="flex-1">
-            <h2 className="font-bold text-lg">{currentUser.name}</h2>
+          <div className="flex-1 text-left">
+            <h2 className="font-bold text-xl">{currentUser.name}</h2>
             <p className="text-sm text-muted-foreground">
               @{currentUser.handle}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-full h-10 w-10 p-0"
-          >
-            <ChevronRight size={20} />
-          </Button>
-        </div>
+          <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
+            <ChevronRight size={20} className="text-muted-foreground" />
+          </div>
+        </button>
 
         {/* Sections */}
         {SETTINGS_SECTIONS.map((section) => (
-          <div key={section.title} className="space-y-2">
-            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-2">
+          <div key={section.title} className="space-y-3">
+            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] px-4">
               {section.title}
             </h3>
-            <div className="bg-secondary/30 rounded-2xl border border-border/50 overflow-hidden">
+            <div className="bg-secondary/20 rounded-[2rem] border border-border/50 overflow-hidden backdrop-blur-sm">
               {section.items.map((item, idx) => (
                 <button
                   key={item.label}
-                  className={`w-full flex items-center gap-4 p-4 hover:bg-primary/5 transition-colors active-scale ${
+                  onClick={item.action}
+                  className={`w-full flex items-center gap-4 p-5 hover:bg-primary/5 transition-all active:bg-primary/10 ${
                     idx !== section.items.length - 1
                       ? "border-b border-border/50"
                       : ""
                   }`}
                 >
-                  <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center text-foreground/70">
-                    <item.icon size={18} />
+                  <div className="h-10 w-10 rounded-2xl bg-secondary/50 flex items-center justify-center text-foreground/80 shadow-sm">
+                    <item.icon size={20} />
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-sm font-bold">{item.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {item.value}
                     </p>
                   </div>
-                  <ChevronRight size={16} className="text-muted-foreground" />
+                  <div className="flex items-center gap-2">
+                    {/* Visual toggle for booleans could go here, but value text is enough for now */}
+                    <ChevronRight
+                      size={16}
+                      className="text-muted-foreground opacity-50"
+                    />
+                  </div>
                 </button>
               ))}
             </div>
@@ -113,15 +160,18 @@ export default function SettingsPage() {
         ))}
 
         {/* Logout Button (Mobile) */}
-        <div className="pt-4 md:hidden">
+        <div className="pt-8">
           <Button
             variant="ghost"
-            className="w-full h-14 rounded-2xl bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 font-bold gap-3 active-scale"
+            className="w-full h-16 rounded-[2rem] bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 font-black text-sm uppercase tracking-widest gap-3 active-scale transition-all shadow-sm"
             onClick={handleLogout}
           >
             <LogOut size={20} />
             Logout from Void
           </Button>
+          <p className="text-center text-[10px] text-muted-foreground mt-6 font-medium opacity-50">
+            VOID VERSION 2.1.0 • SHADOW PROTOCOL ACTIVE
+          </p>
         </div>
       </main>
     </div>
