@@ -23,6 +23,21 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Micro-animations */
+  .active-scale:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease-in-out;
+  }
+
+  /* Mobile safe area padding */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
 }
 @theme inline {
   --color-background: var(--background);

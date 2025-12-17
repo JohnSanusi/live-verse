@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { FeedItem } from "@/components/FeedItem";
 import { Header } from "@/components/Header";
+import { StatusList } from "@/components/StatusList";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -25,36 +26,38 @@ export default function FeedsPage() {
 
   return (
     <div className="pb-20">
-      <Header 
-        title="Feed" 
+      <Header
+        title="Feed"
         action={
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             className="h-9 w-9 p-0 rounded-full"
             onClick={() => setShowCreatePost(true)}
           >
             <Plus size={20} />
           </Button>
-        } 
+        }
       />
-      
+
+      <StatusList />
+
       {/* Create Post Modal */}
       {showCreatePost && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
           <div className="bg-background border border-border rounded-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">Create Post</h2>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="h-8 w-8 p-0 rounded-full"
                 onClick={() => setShowCreatePost(false)}
               >
                 <X size={20} />
               </Button>
             </div>
-            
+
             <div className="space-y-4">
               <textarea
                 placeholder="What's on your mind?"
@@ -62,15 +65,15 @@ export default function FeedsPage() {
                 value={postText}
                 onChange={(e) => setPostText(e.target.value)}
               />
-              
+
               <Input
                 placeholder="Image URL (optional)"
                 className="bg-secondary/50 border-border"
                 value={postImage}
                 onChange={(e) => setPostImage(e.target.value)}
               />
-              
-              <Button 
+
+              <Button
                 className="w-full bg-primary text-primary-foreground"
                 onClick={handleCreatePost}
                 disabled={!postText.trim()}
@@ -84,9 +87,9 @@ export default function FeedsPage() {
 
       <main className="space-y-4">
         {feeds.map((feed) => (
-          <FeedItem 
-            key={feed.id} 
-            {...feed} 
+          <FeedItem
+            key={feed.id}
+            {...feed}
             onLike={() => toggleLike(feed.id)}
             onComment={(text) => addComment(feed.id, text)}
           />

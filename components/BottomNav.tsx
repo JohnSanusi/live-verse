@@ -16,20 +16,35 @@ export const BottomNav = () => {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/80 backdrop-blur-lg pb-safe">
-      <div className="flex h-16 items-center justify-around px-4">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/90 backdrop-blur-xl pb-safe">
+      <div className="flex h-18 items-center justify-around px-2">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
+          const isActive =
+            pathname === href || (href !== "/" && pathname.startsWith(href));
           return (
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center justify-center space-y-1 transition-colors ${
-                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+              className={`flex flex-1 flex-col items-center justify-center py-2 transition-all duration-200 active:scale-90 ${
+                isActive
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-              <span className="text-[10px] font-medium">{label}</span>
+              <div
+                className={`p-1 rounded-xl transition-colors ${
+                  isActive ? "bg-primary/10" : ""
+                }`}
+              >
+                <Icon size={26} strokeWidth={isActive ? 2.5 : 2} />
+              </div>
+              <span
+                className={`text-[10px] font-bold mt-0.5 ${
+                  isActive ? "opacity-100" : "opacity-70"
+                }`}
+              >
+                {label}
+              </span>
             </Link>
           );
         })}

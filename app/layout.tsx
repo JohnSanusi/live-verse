@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 
 import { Loader } from "@/components/Loader";
 import { AppProvider } from "@/context/AppContext";
+import { ToastProvider } from "@/components/ui/Toast";
 import AuthGuard from "@/components/AuthGuard";
 
 const geistSans = Geist({
@@ -48,9 +49,11 @@ export default function RootLayout({
       >
         <Loader />
         <AppProvider>
-          <AuthGuard>
-            <MainLayout>{children}</MainLayout>
-          </AuthGuard>
+          <ToastProvider>
+            <AuthGuard>
+              <MainLayout>{children}</MainLayout>
+            </AuthGuard>
+          </ToastProvider>
         </AppProvider>
       </body>
     </html>
@@ -62,9 +65,9 @@ function MainLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background text-foreground flex">
       <Sidebar />
       <main className="flex-1 md:ml-64 w-full">
-         <div className="max-w-3xl mx-auto w-full min-h-screen border-x border-border/50 shadow-2xl shadow-black">
-            {children}
-         </div>
+        <div className="max-w-3xl mx-auto w-full min-h-screen border-x border-border/50 shadow-2xl shadow-black">
+          {children}
+        </div>
       </main>
       <BottomNav />
     </div>
