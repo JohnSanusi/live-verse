@@ -1,4 +1,7 @@
+"use client";
+
 import React from "react";
+import { Check, CheckCheck } from "lucide-react";
 
 interface MessageBubbleProps {
   message: {
@@ -36,16 +39,20 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
           {time}
         </p>
       </div>
-
       {isMe && status && (
-        <div className="mt-1 px-1">
-          <p className="text-[10px] font-medium text-muted-foreground">
-            {status === "read"
-              ? `Read ${readTime || ""}`
-              : status === "delivered"
-              ? "Delivered"
-              : "Sent"}
-          </p>
+        <div className="mt-0.5 px-1 flex items-center justify-end gap-1">
+          {status === "sent" ? (
+            <Check size={14} className="text-muted-foreground" />
+          ) : status === "delivered" ? (
+            <CheckCheck size={14} className="text-muted-foreground" />
+          ) : (
+            <CheckCheck size={14} className="text-blue-500" />
+          )}
+          {status === "read" && readTime && (
+            <span className="text-[9px] text-muted-foreground">
+              Read {readTime}
+            </span>
+          )}
         </div>
       )}
     </div>

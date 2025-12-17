@@ -252,16 +252,16 @@ export default function MarketplacePage() {
                 <p className="text-xs text-muted-foreground mb-2">
                   {product.seller}
                 </p>
-                <div className="flex items-center justify-between">
-                  <span className="text-primary font-bold">
+                <div className="space-y-2">
+                  <span className="text-primary font-bold block">
                     {product.price}
                   </span>
                   <Button
                     size="sm"
-                    className="h-7 px-3 text-xs rounded-full bg-primary text-primary-foreground"
+                    className="w-full h-9 text-xs rounded-xl bg-primary text-primary-foreground font-bold active-scale"
                     onClick={() => handleBuy(product)}
                   >
-                    Buy
+                    Buy Now
                   </Button>
                 </div>
               </div>

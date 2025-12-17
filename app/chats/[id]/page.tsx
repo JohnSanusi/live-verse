@@ -10,6 +10,7 @@ import {
   Send,
   Paperclip,
   Mic,
+  BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -24,6 +25,7 @@ export default function ChatDetailPage() {
   const { chats, sendMessage } = useApp();
   const { showToast, confirm } = useToast();
   const [text, setText] = useState("");
+  const [showOptions, setShowOptions] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const chat = chats.find((c) => c.id === chatId);
@@ -67,6 +69,20 @@ export default function ChatDetailPage() {
     });
   };
 
+  const handleOption = (action: string) => {
+    setShowOptions(false);
+    confirm({
+      title: action,
+      message: `Are you sure you want to ${action.toLowerCase()} with ${
+        chat?.user.name
+      }?`,
+      confirmText: action,
+      onConfirm: () => {
+        showToast(`${action} successful!`, "success");
+      },
+    });
+  };
+
   if (!chat) return <div className="p-4 text-center">Chat not found</div>;
 
   return (
@@ -77,13 +93,13 @@ export default function ChatDetailPage() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 -ml-2 rounded-full"
+            className="h-8 w-8 p-0 -ml-2 rounded-full active-scale"
             onClick={() => router.push("/chats")}
           >
             <ArrowLeft size={20} />
           </Button>
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-muted overflow-hidden">
+            <div className="h-9 w-9 rounded-full bg-muted overflow-hidden border border-border/50">
               {chat.user.avatar.length > 2 ? (
                 <img
                   src={chat.user.avatar}
@@ -97,26 +113,38 @@ export default function ChatDetailPage() {
               )}
             </div>
             <div>
-              <h3 className="font-semibold text-sm leading-none">
-                {chat.user.name}
-              </h3>
+              <div className="flex items-center gap-1">
+                <h3 className="font-semibold text-sm leading-none">
+                  {chat.isGroup ? chat.groupName : chat.user.name}
+                </h3>
+                {!chat.isGroup && chat.user.isVerified && (
+                  <BadgeCheck
+                    size={14}
+                    className="text-blue-500 fill-blue-500"
+                  />
+                )}
+              </div>
               <span
                 className={`text-[10px] font-medium ${
-                  chat.user.status === "online"
+                  !chat.isGroup && chat.user.status === "online"
                     ? "text-green-500"
                     : "text-muted-foreground"
                 }`}
               >
-                {chat.user.status === "online" ? "Online" : "Offline"}
+                {chat.isGroup
+                  ? `${chat.members?.length || 0} members`
+                  : chat.user.status === "online"
+                  ? "Online"
+                  : "Offline"}
               </span>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 relative">
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 rounded-full"
+            className="h-9 w-9 p-0 rounded-full active-scale"
             onClick={() => handleCall("voice")}
           >
             <Phone size={18} />
@@ -124,7 +152,7 @@ export default function ChatDetailPage() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 rounded-full"
+            className="h-9 w-9 p-0 rounded-full active-scale"
             onClick={() => handleCall("video")}
           >
             <Video size={18} />
@@ -132,11 +160,34 @@ export default function ChatDetailPage() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 rounded-full"
-            onClick={() => showToast("Options menu", "info")}
+            className="h-9 w-9 p-0 rounded-full active-scale"
+            onClick={() => setShowOptions(!showOptions)}
           >
             <MoreVertical size={18} />
           </Button>
+
+          {showOptions && (
+            <div className="absolute top-12 right-0 w-48 bg-background border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <button
+                className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors"
+                onClick={() => handleOption("Clear Chat")}
+              >
+                Clear Chat
+              </button>
+              <button
+                className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors"
+                onClick={() => handleOption("Mute Notifications")}
+              >
+                Mute Notifications
+              </button>
+              <button
+                className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
+                onClick={() => handleOption("Block User")}
+              >
+                Block User
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -155,7 +206,7 @@ export default function ChatDetailPage() {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-10 w-10 p-0 rounded-full text-muted-foreground hover:text-primary"
+            className="h-10 w-10 p-0 rounded-full text-muted-foreground hover:text-primary active-scale"
             onClick={handleFileAttach}
           >
             <Paperclip size={20} />
@@ -171,7 +222,7 @@ export default function ChatDetailPage() {
               type="button"
               variant="ghost"
               size="sm"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-primary"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-primary active-scale"
               onClick={() => {
                 sendMessage(chatId, "🎤 [Voice Message] (0:15)");
                 showToast("Voice message sent!", "success");
@@ -183,7 +234,7 @@ export default function ChatDetailPage() {
           <Button
             type="submit"
             size="sm"
-            className="h-10 w-10 p-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+            className="h-10 w-10 p-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active-scale"
           >
             <Send size={18} className="ml-0.5" />
           </Button>

@@ -22,6 +22,8 @@ export interface User {
   };
   status?: "online" | "offline" | "away";
   isFriend?: boolean;
+  isVerified?: boolean;
+  coverPhoto?: string;
 }
 
 export interface Comment {
@@ -70,13 +72,18 @@ export interface Status {
 
 export interface Chat {
   id: string;
-  user: User;
+  user: User; // For 1-on-1 chats, this is the other person. For groups, this can be the creator or null.
   messages: Message[];
   lastMessage: {
     text: string;
     time: string;
     unread?: number;
   };
+  isArchived?: boolean;
+  isGroup?: boolean;
+  groupName?: string;
+  groupAvatar?: string;
+  members?: User[];
 }
 
 export interface FileItem {
@@ -106,6 +113,9 @@ interface AppContextType {
   toggleFriend: (userId: string) => void;
   addContact: (user: User) => void;
   markStatusAsSeen: (statusId: string) => void;
+  addStatus: (items: Status["items"]) => void;
+  toggleArchiveChat: (chatId: string) => void;
+  createGroupChat: (name: string, memberIds: string[]) => void;
   login: (email: string, password: string) => boolean;
   signup: (name: string, email: string, password: string) => boolean;
   logout: () => void;
@@ -128,6 +138,7 @@ const MOCK_USER: User = {
   bio: "Digital explorer & code artisan. Building the future of messaging with Live-Verse. 🚀 #coding #react #nextjs",
   status: "online",
   stats: { posts: 42, followers: 1250, following: 340 },
+  isVerified: true,
 };
 
 const MOCK_USERS: User[] = [
@@ -141,6 +152,7 @@ const MOCK_USERS: User[] = [
     stats: { posts: 12, followers: 450, following: 210 },
     status: "online",
     isFriend: true,
+    isVerified: true,
   },
   {
     id: "2",
@@ -152,6 +164,7 @@ const MOCK_USERS: User[] = [
     stats: { posts: 28, followers: 890, following: 400 },
     status: "offline",
     isFriend: false,
+    isVerified: true,
   },
   {
     id: "3",
@@ -163,6 +176,7 @@ const MOCK_USERS: User[] = [
     stats: { posts: 54, followers: 1200, following: 560 },
     status: "away",
     isFriend: false,
+    isVerified: false,
   },
 ];
 
@@ -440,6 +454,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             time: new Date().toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
+              hour12: true,
             }),
             isMe: true,
             status: "sent",
@@ -461,6 +476,45 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         status.id === statusId ? { ...status, isUnseen: false } : status
       )
     );
+  };
+
+  const addStatus = (items: Status["items"]) => {
+    const newStatus: Status = {
+      id: Date.now().toString(),
+      user: currentUser,
+      items,
+      isUnseen: false,
+    };
+    setStatuses((prev) => [newStatus, ...prev]);
+  };
+
+  const toggleArchiveChat = (chatId: string) => {
+    setChats((prev) =>
+      prev.map((chat) =>
+        chat.id === chatId ? { ...chat, isArchived: !chat.isArchived } : chat
+      )
+    );
+  };
+
+  const createGroupChat = (name: string, memberIds: string[]) => {
+    const groupMembers = users.filter((u) => memberIds.includes(u.id));
+    const newChat: Chat = {
+      id: Date.now().toString(),
+      user: currentUser, // Creator as representative
+      messages: [],
+      lastMessage: {
+        text: "Group created",
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        }),
+      },
+      isGroup: true,
+      groupName: name,
+      members: [currentUser, ...groupMembers],
+    };
+    setChats((prev) => [newChat, ...prev]);
   };
 
   const addFile = () => {
@@ -643,6 +697,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         toggleFriend,
         addContact,
         markStatusAsSeen,
+        addStatus,
+        toggleArchiveChat,
+        createGroupChat,
         login,
         signup,
         logout,

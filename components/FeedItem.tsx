@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Heart, MessageCircle, Share2, Send } from "lucide-react";
+import { Heart, MessageCircle, Share2, Send, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FeedPost, Comment } from "@/context/AppContext";
@@ -64,7 +64,12 @@ export const FeedItem = ({
             )}
           </div>
           <div className="flex-1">
-            <h3 className="font-bold text-sm">{user.name}</h3>
+            <div className="flex items-center gap-1">
+              <h3 className="font-bold text-sm">{user.name}</h3>
+              {user.isVerified && (
+                <BadgeCheck size={14} className="text-blue-500 fill-blue-500" />
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">@{user.handle}</p>
           </div>
         </Link>

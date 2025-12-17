@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   Home,
   MessageCircle,
-  FileText,
   User,
   Settings,
   LogOut,
@@ -15,18 +14,31 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/components/ui/Toast";
 
 export const Sidebar = () => {
   const pathname = usePathname();
+  const { logout } = useApp();
+  const { confirm } = useToast();
 
   const navItems = [
     { href: "/", icon: Home, label: "Feed" },
     { href: "/reels", icon: Video, label: "Reels" },
     { href: "/chats", icon: MessageCircle, label: "Chats" },
     { href: "/marketplace", icon: ShoppingBag, label: "Marketplace" },
-    { href: "/files", icon: FileText, label: "Files" },
     { href: "/profile", icon: User, label: "Profile" },
   ];
+
+  const handleLogout = () => {
+    confirm({
+      title: "Logout",
+      message: "Are you sure you want to logout of Void?",
+      confirmText: "Logout",
+      onConfirm: () => {
+        logout();
+      },
+    });
+  };
 
   return (
     <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 border-r border-border bg-background/95 backdrop-blur-lg z-50">
@@ -42,7 +54,7 @@ export const Sidebar = () => {
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 active-scale ${
                 isActive
                   ? "bg-primary/10 text-primary font-medium"
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -56,21 +68,23 @@ export const Sidebar = () => {
       </nav>
 
       <div className="p-4 border-t border-border space-y-2">
+        <Link href="/settings">
+          <Button
+            variant="ghost"
+            className={`w-full justify-start gap-3 transition-all duration-200 active-scale ${
+              pathname === "/settings"
+                ? "bg-primary/10 text-primary font-medium"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Settings size={20} />
+            <span>Settings</span>
+          </Button>
+        </Link>
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-        >
-          <Settings size={20} />
-          <span>Settings</span>
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-          onClick={() => {
-            const { logout } = useApp();
-            logout();
-            window.location.href = "/login";
-          }}
+          className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-500/10 active-scale"
+          onClick={handleLogout}
         >
           <LogOut size={20} />
           <span>Logout</span>

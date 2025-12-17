@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, BadgeCheck } from "lucide-react";
 import { Status, useApp } from "@/context/AppContext";
 import { Button } from "@/components/ui/Button";
 
@@ -114,9 +114,14 @@ export const StatusViewer = ({
             )}
           </div>
           <div>
-            <p className="text-white font-bold text-sm">
-              {currentStatus.user.name}
-            </p>
+            <div className="flex items-center gap-1">
+              <p className="text-white font-bold text-sm">
+                {currentStatus.user.name}
+              </p>
+              {currentStatus.user.isVerified && (
+                <BadgeCheck size={14} className="text-blue-500 fill-blue-500" />
+              )}
+            </div>
             <p className="text-white/60 text-[10px]">Just now</p>
           </div>
         </div>

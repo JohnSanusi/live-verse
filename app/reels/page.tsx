@@ -85,12 +85,47 @@ export default function ReelsPage() {
             </div>
 
             <div className="space-y-4">
-              <Input
-                placeholder="Video URL"
-                className="bg-secondary/50 border-border"
-                value={reelVideo}
-                onChange={(e) => setReelVideo(e.target.value)}
+              <input
+                type="file"
+                id="reel-video-upload"
+                className="hidden"
+                accept="video/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const url = URL.createObjectURL(file);
+                    setReelVideo(url);
+                  }
+                }}
               />
+              <Button
+                variant="secondary"
+                className="w-full h-32 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 hover:border-primary hover:bg-primary/5 transition-all"
+                onClick={() =>
+                  document.getElementById("reel-video-upload")?.click()
+                }
+              >
+                <Play size={32} className="text-muted-foreground" />
+                <span className="text-sm font-medium">
+                  Click to upload Video
+                </span>
+              </Button>
+
+              {reelVideo && (
+                <div className="relative aspect-[9/16] max-h-48 mx-auto rounded-xl overflow-hidden bg-muted border border-border group">
+                  <video
+                    src={reelVideo}
+                    className="w-full h-full object-cover"
+                    controls
+                  />
+                  <button
+                    className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => setReelVideo("")}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
 
               <textarea
                 placeholder="Caption..."
@@ -100,7 +135,7 @@ export default function ReelsPage() {
               />
 
               <Button
-                className="w-full bg-primary text-primary-foreground"
+                className="w-full bg-primary text-primary-foreground h-12 rounded-xl font-bold active-scale"
                 onClick={handleCreateReel}
                 disabled={!reelCaption.trim() || !reelVideo.trim()}
               >
@@ -126,62 +161,81 @@ export default function ReelsPage() {
             </div>
 
             {/* Content Overlay */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 pb-20 md:pb-4 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+            <div className="absolute bottom-0 left-0 right-0 p-6 pb-24 md:pb-6 z-10 bg-gradient-to-t from-black/90 via-black/40 to-transparent">
               <div className="max-w-md mx-auto">
-                <div className="flex items-end justify-between">
-                  <div className="flex-1">
-                    <Link
-                      href={`/profile/${reel.user.id}`}
-                      className="flex items-center gap-2 mb-2 hover:opacity-80 transition-opacity"
-                    >
-                      <div className="h-10 w-10 rounded-full bg-muted overflow-hidden flex items-center justify-center text-primary font-bold">
-                        {reel.user.avatar}
-                      </div>
-                      <div>
-                        <p className="font-bold text-white">{reel.user.name}</p>
-                        <p className="text-xs text-white/70">
-                          {reel.user.handle}
-                        </p>
-                      </div>
-                    </Link>
-                    <Button
-                      size="sm"
-                      className="ml-2 h-8 px-4 rounded-full bg-primary text-primary-foreground"
-                      onClick={() => handleAction("Following")}
-                    >
-                      Follow
-                    </Button>
-                    <p className="text-white text-sm mb-2 mt-2">
+                <div className="flex items-end justify-between gap-4">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Link
+                        href={`/profile/${reel.user.id}`}
+                        className="flex items-center gap-2 hover:opacity-80 transition-opacity active-scale"
+                      >
+                        <div className="h-11 w-11 rounded-full bg-primary/20 overflow-hidden flex items-center justify-center text-primary font-bold border-2 border-primary/30">
+                          {reel.user.avatar}
+                        </div>
+                        <div>
+                          <p className="font-bold text-white text-base leading-none">
+                            {reel.user.name}
+                          </p>
+                          <p className="text-xs text-white/60 mt-1">
+                            {reel.user.handle}
+                          </p>
+                        </div>
+                      </Link>
+                      <Button
+                        size="sm"
+                        className="h-8 px-4 rounded-full bg-primary text-primary-foreground font-bold text-xs active-scale"
+                        onClick={() => handleAction("Following")}
+                      >
+                        Follow
+                      </Button>
+                    </div>
+                    <p className="text-white text-sm leading-relaxed line-clamp-2 drop-shadow-md">
                       {reel.caption}
                     </p>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex flex-col gap-4 ml-4">
+                  <div className="flex flex-col gap-6 items-center">
                     <button
-                      className="flex flex-col items-center"
+                      className="flex flex-col items-center gap-1 group active-scale"
                       onClick={() => handleAction("Liked")}
                     >
-                      <Heart size={28} className="text-white mb-1" />
-                      <span className="text-xs text-white">
+                      <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center group-active:bg-primary/20 transition-colors">
+                        <Heart
+                          size={28}
+                          className="text-white group-active:text-primary transition-colors"
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-white drop-shadow-md">
                         {reel.stats.likes}
                       </span>
                     </button>
                     <button
-                      className="flex flex-col items-center"
+                      className="flex flex-col items-center gap-1 group active-scale"
                       onClick={() => handleAction("Opening comments")}
                     >
-                      <MessageCircle size={28} className="text-white mb-1" />
-                      <span className="text-xs text-white">
+                      <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center group-active:bg-primary/20 transition-colors">
+                        <MessageCircle
+                          size={28}
+                          className="text-white group-active:text-primary transition-colors"
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-white drop-shadow-md">
                         {reel.stats.comments}
                       </span>
                     </button>
                     <button
-                      className="flex flex-col items-center"
+                      className="flex flex-col items-center gap-1 group active-scale"
                       onClick={() => handleAction("Link copied")}
                     >
-                      <Share2 size={28} className="text-white mb-1" />
-                      <span className="text-xs text-white">
+                      <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center group-active:bg-primary/20 transition-colors">
+                        <Share2
+                          size={28}
+                          className="text-white group-active:text-primary transition-colors"
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-white drop-shadow-md">
                         {reel.stats.shares}
                       </span>
                     </button>

@@ -12,7 +12,7 @@ export const BottomNav = () => {
     { href: "/reels", icon: Video, label: "Reels" },
     { href: "/marketplace", icon: ShoppingBag, label: "Market" },
     { href: "/chats", icon: MessageCircle, label: "Chats" },
-    { href: "/profile", icon: User, label: "Profile" },
+    { href: "/settings", icon: User, label: "Settings" },
   ];
 
   return (

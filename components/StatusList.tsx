@@ -1,20 +1,25 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, BadgeCheck } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { StatusViewer } from "./StatusViewer";
+import { StatusCreator } from "./StatusCreator";
 
 export const StatusList = () => {
   const { statuses, currentUser } = useApp();
   const [selectedStatusIndex, setSelectedStatusIndex] = useState<number | null>(
     null
   );
+  const [showCreator, setShowCreator] = useState(false);
 
   return (
     <div className="flex gap-4 overflow-x-auto p-4 scrollbar-hide bg-card border-b border-border">
       {/* My Status */}
-      <div className="flex flex-col items-center gap-1 flex-shrink-0">
+      <div
+        className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer active-scale"
+        onClick={() => setShowCreator(true)}
+      >
         <div className="relative">
           <div className="h-16 w-16 rounded-full bg-muted overflow-hidden border-2 border-background">
             {currentUser.avatar.length > 2 ? (
@@ -42,7 +47,7 @@ export const StatusList = () => {
       {statuses.map((status, index) => (
         <button
           key={status.id}
-          className="flex flex-col items-center gap-1 flex-shrink-0"
+          className="flex flex-col items-center gap-1 flex-shrink-0 active-scale"
           onClick={() => setSelectedStatusIndex(index)}
         >
           <div
@@ -64,9 +69,17 @@ export const StatusList = () => {
               )}
             </div>
           </div>
-          <span className="text-[10px] font-medium text-foreground truncate w-16 text-center">
-            {status.user.name.split(" ")[0]}
-          </span>
+          <div className="flex items-center justify-center gap-0.5 w-16 px-1">
+            <span className="text-[10px] font-medium text-foreground truncate">
+              {status.user.name.split(" ")[0]}
+            </span>
+            {status.user.isVerified && (
+              <BadgeCheck
+                size={10}
+                className="text-blue-500 fill-blue-500 text-white flex-shrink-0"
+              />
+            )}
+          </div>
         </button>
       ))}
 
@@ -77,6 +90,8 @@ export const StatusList = () => {
           onClose={() => setSelectedStatusIndex(null)}
         />
       )}
+
+      {showCreator && <StatusCreator onClose={() => setShowCreator(false)} />}
     </div>
   );
 };
