@@ -8,6 +8,7 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
+import { supabase } from "@/lib/supabase";
 
 // --- Types ---
 export interface User {
@@ -36,7 +37,7 @@ export interface Comment {
 }
 
 export interface FeedPost {
-  id: number;
+  id: string;
   user: User;
   content: {
     text: string;
@@ -70,6 +71,7 @@ export interface Status {
     content?: string;
   }[];
   isUnseen: boolean;
+  createdAt: string;
   likes?: string[];
   replies?: { userId: string; text: string; time: string }[];
 }
@@ -109,36 +111,43 @@ interface AppContextType {
   statuses: Status[];
   isAuthenticated: boolean;
   updateProfile: (data: Partial<User>) => void;
-  toggleLike: (feedId: number) => void;
-  addComment: (feedId: number, text: string) => void;
-  toggleCommentLike: (feedId: number, commentId: string) => void;
+  toggleLike: (targetId: string, targetType?: "post" | "reel") => Promise<void>;
+  addComment: (feedId: string, text: string) => Promise<void>;
+  toggleCommentLike: (feedId: string, commentId: string) => void;
+  verifyUser: (userId: string, status: boolean) => Promise<void>;
   sendMessage: (chatId: string, text: string) => void;
   addFile: () => void;
-  toggleFriend: (userId: string) => void;
+  toggleFriend: (userId: string) => Promise<void>;
   addContact: (user: User) => void;
   markStatusAsSeen: (statusId: string) => void;
-  addStatus: (items: Status["items"]) => void;
+  addStatus: (text: string, media?: File | string) => Promise<void>;
   toggleStatusLike: (statusId: string) => void;
   replyToStatus: (statusId: string, text: string) => void;
   toggleArchiveChat: (chatId: string) => void;
   createGroupChat: (name: string, memberIds: string[]) => void;
-  login: (email: string, password: string) => boolean;
-  signup: (name: string, email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<boolean>;
+  signup: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  createPost: (text: string, image?: string) => void;
-  createReel: (caption: string, video: string) => void;
+  createPost: (text: string, media?: File | string) => Promise<void>;
+  createReel: (caption: string, video: File | string) => Promise<void>;
   createMarketplaceItem: (
     name: string,
     price: string,
-    image: string,
+    image: File | string,
     category: string
-  ) => void;
+  ) => Promise<void>;
   settings: {
     notifications: boolean;
     privacy: "public" | "private";
     darkMode: boolean;
   };
   updateSettings: (settings: Partial<AppContextType["settings"]>) => void;
+  markChatAsRead: (chatId: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
+  uploadFile: (bucket: string, file: File) => Promise<string | null>;
+  reels: any[];
+  marketplaceItems: any[];
 }
 
 // --- Mock Data Generators ---
@@ -194,7 +203,7 @@ const MOCK_USERS: User[] = [
 
 const MOCK_FEEDS: FeedPost[] = [
   {
-    id: 1,
+    id: "1",
     user: {
       ...MOCK_USER,
       id: "u1",
@@ -225,7 +234,7 @@ const MOCK_FEEDS: FeedPost[] = [
     ],
   },
   {
-    id: 2,
+    id: "2",
     user: {
       ...MOCK_USER,
       id: "u2",
@@ -241,7 +250,7 @@ const MOCK_FEEDS: FeedPost[] = [
     commentsList: [],
   },
   {
-    id: 3,
+    id: "3",
     user: {
       ...MOCK_USER,
       id: "u3",
@@ -270,6 +279,8 @@ const MOCK_STATUSES: Status[] = [
     id: "s1",
     user: MOCK_USERS[0],
     isUnseen: true,
+    createdAt: new Date().toISOString(),
+    likes: [],
     items: [
       {
         id: "si1",
@@ -282,7 +293,9 @@ const MOCK_STATUSES: Status[] = [
   {
     id: "s2",
     user: MOCK_USERS[1],
-    isUnseen: true,
+    isUnseen: false,
+    createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+    likes: [],
     items: [
       {
         id: "si2",
@@ -401,6 +414,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [files, setFiles] = useState<FileItem[]>(MOCK_FILES);
   const [contacts, setContacts] = useState<User[]>([]);
   const [statuses, setStatuses] = useState<Status[]>(MOCK_STATUSES);
+  const [reels, setReels] = useState<any[]>([]);
+  const [marketplaceItems, setMarketplaceItems] = useState<any[]>([]);
   const [settings, setSettings] = useState<{
     notifications: boolean;
     privacy: "public" | "private";
@@ -435,14 +450,313 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     console.log("Theme updated:", settings.darkMode ? "dark" : "light");
   }, [settings]);
 
-  // Check auth on mount
+  // Fetch Feeds, Reels, Marketplace, and Chats from Supabase
   useEffect(() => {
-    const authToken = localStorage.getItem("authToken");
-    const userData = localStorage.getItem("userData");
-    if (authToken && userData) {
-      setIsAuthenticated(true);
-      setCurrentUser(JSON.parse(userData));
+    const fetchData = async () => {
+      // Fetch Posts
+      const { data: postsData } = await supabase
+        .from("posts")
+        .select(
+          `
+          *,
+          profiles:user_id (id, name, avatar_url, handle, is_verified),
+          likes (user_id),
+          comments (*)
+        `
+        )
+        .order("created_at", { ascending: false });
+
+      if (postsData) {
+        setFeeds(
+          postsData.map((post: any) => ({
+            id: post.id,
+            user: {
+              id: post.profiles.id,
+              name: post.profiles.name,
+              avatar: post.profiles.avatar_url,
+              handle: post.profiles.handle,
+              isVerified: post.profiles.is_verified,
+              bio: "",
+              stats: { posts: 0, followers: 0, following: 0 },
+            },
+            content: post.content,
+            stats: {
+              likes: post.likes.length,
+              comments: post.comments.length,
+            },
+            liked: post.likes.some((l: any) => l.user_id === currentUser.id),
+            commentsList: post.comments.map((c: any) => ({
+              id: c.id,
+              user: {
+                id: c.user_id,
+                name: "User",
+                avatar: "U",
+                handle: "user",
+                bio: "",
+                stats: { posts: 0, followers: 0, following: 0 },
+              },
+              text: c.text,
+              time: "Recently",
+            })),
+          }))
+        );
+      }
+
+      // Fetch Reels
+      const { data: reelsData } = await supabase
+        .from("reels")
+        .select(
+          `
+          *,
+          profiles:user_id (id, name, avatar_url, handle, is_verified),
+          likes (user_id)
+        `
+        )
+        .order("created_at", { ascending: false });
+
+      if (reelsData) {
+        setReels(
+          reelsData.map((r: any) => ({
+            id: r.id,
+            user: {
+              id: r.profiles.id,
+              name: r.profiles.name,
+              avatar: r.profiles.avatar_url,
+              handle: r.profiles.handle,
+              isVerified: r.profiles.is_verified,
+              bio: "",
+              stats: { posts: 0, followers: 0, following: 0 },
+            },
+            video: r.video_url,
+            caption: r.caption,
+            stats: {
+              likes: r.likes.length,
+              comments: 0,
+              shares: 0,
+            },
+            liked: r.likes.some((l: any) => l.user_id === currentUser.id),
+          }))
+        );
+      }
+
+      // Fetch Marketplace
+      const { data: marketData } = await supabase
+        .from("marketplace_items")
+        .select(
+          `
+          *,
+          profiles:seller_id (id, name, avatar_url, handle, is_verified)
+        `
+        )
+        .order("created_at", { ascending: false });
+
+      if (marketData) {
+        setMarketplaceItems(marketData);
+      }
+
+      // Fetch & Filter Statuses
+      const { data: statusesData } = await supabase
+        .from("statuses")
+        .select(
+          `
+          *,
+          profiles:user_id (id, name, avatar_url, handle, is_verified)
+        `
+        )
+        .order("created_at", { ascending: false });
+
+      if (statusesData) {
+        const now = Date.now();
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+        const activeStatuses = statusesData
+          .filter(
+            (s) => now - new Date(s.created_at).getTime() < twentyFourHours
+          )
+          .map((s) => ({
+            id: s.id,
+            user: {
+              id: s.profiles.id,
+              name: s.profiles.name,
+              avatar: s.profiles.avatar_url,
+              handle: s.profiles.handle,
+              isVerified: s.profiles.is_verified,
+              bio: s.profiles.bio || "",
+              stats: { posts: 0, followers: 0, following: 0 },
+            },
+            createdAt: s.created_at,
+            items: s.items,
+            isUnseen: true, // Mock simple unseen state
+          }));
+        setStatuses(activeStatuses);
+      }
+
+      // Fetch Chats
+      const { data: chatsData } = await supabase
+        .from("chats")
+        .select(
+          `
+          *,
+          chat_participants (
+            profiles:user_id (*)
+          ),
+          messages (*)
+        `
+        )
+        .order("updated_at", { ascending: false });
+
+      if (chatsData) {
+        setChats(
+          chatsData.map((c: any) => {
+            const otherParticipant = c.chat_participants.find(
+              (p: any) => p.profiles.id !== currentUser.id
+            )?.profiles;
+            return {
+              id: c.id,
+              user: otherParticipant
+                ? {
+                    id: otherParticipant.id,
+                    name: otherParticipant.name,
+                    avatar: otherParticipant.avatar_url,
+                    handle: otherParticipant.handle,
+                    status: "online",
+                    isVerified: otherParticipant.is_verified,
+                    bio: otherParticipant.bio || "",
+                    stats: { posts: 0, followers: 0, following: 0 },
+                  }
+                : MOCK_USER,
+              messages: c.messages.map((m: any) => ({
+                id: m.id,
+                text: m.text,
+                time: new Date(m.created_at).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+                isMe: m.sender_id === currentUser.id,
+                status: "read",
+              })),
+              lastMessage: {
+                text: c.messages[c.messages.length - 1]?.text || "No messages",
+                time: "Just now",
+              },
+              isGroup: c.is_group,
+              groupName: c.name,
+            };
+          })
+        );
+      }
+    };
+
+    if (isAuthenticated) {
+      fetchData();
     }
+  }, [isAuthenticated, currentUser.id]);
+
+  const toggleLike = useCallback(
+    async (targetId: string, targetType: "post" | "reel" = "post") => {
+      // Check if liked
+      const { data: existingLike } = await supabase
+        .from("likes")
+        .select("*")
+        .eq("user_id", currentUser.id)
+        .eq("target_id", targetId)
+        .eq("target_type", targetType)
+        .single();
+
+      if (existingLike) {
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("user_id", currentUser.id)
+          .eq("target_id", targetId)
+          .eq("target_type", targetType);
+      } else {
+        await supabase.from("likes").insert({
+          user_id: currentUser.id,
+          target_id: targetId,
+          target_type: targetType,
+        });
+      }
+
+      if (targetType === "post") {
+        setFeeds((prev) =>
+          prev.map((post) =>
+            post.id === targetId
+              ? {
+                  ...post,
+                  liked: !post.liked,
+                  stats: {
+                    ...post.stats,
+                    likes: post.stats.likes + (post.liked ? -1 : 1),
+                  },
+                }
+              : post
+          )
+        );
+      } else {
+        setReels((prev) =>
+          prev.map((reel) =>
+            reel.id === targetId
+              ? {
+                  ...reel,
+                  liked: !reel.liked,
+                  stats: {
+                    ...reel.stats,
+                    likes: (reel.stats.likes || 0) + (reel.liked ? -1 : 1),
+                  },
+                }
+              : reel
+          )
+        );
+      }
+    },
+    [currentUser.id]
+  );
+
+  // Supabase Auth Listener
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        setIsAuthenticated(true);
+        // Fetch full profile from DB
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single();
+
+        const user: User = {
+          id: session.user.id,
+          name:
+            profile?.name ||
+            session.user.user_metadata?.full_name ||
+            session.user.email?.split("@")[0] ||
+            "User",
+          handle:
+            profile?.handle ||
+            session.user.user_metadata?.user_name ||
+            session.user.email?.split("@")[0] ||
+            "user",
+          avatar:
+            profile?.avatar_url ||
+            session.user.user_metadata?.avatar_url ||
+            session.user.email?.[0].toUpperCase() ||
+            "U",
+          bio: profile?.bio || "Digital explorer",
+          stats: profile?.stats || { posts: 0, followers: 0, following: 0 },
+          status: "online",
+          isVerified: profile?.is_verified || false,
+        };
+        setCurrentUser(user);
+        localStorage.setItem("userData", JSON.stringify(user));
+      } else {
+        setIsAuthenticated(false);
+        setCurrentUser(MOCK_USER); // Reset to dummy if needed or null
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const updateProfile = (data: Partial<User>) => {
@@ -451,72 +765,151 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("userData", JSON.stringify(updated));
   };
 
-  const toggleLike = useCallback((feedId: number) => {
-    setFeeds((prev) =>
-      prev.map((post) =>
-        post.id === feedId
-          ? {
-              ...post,
-              liked: !post.liked,
-              stats: {
-                ...post.stats,
-                likes: post.liked ? post.stats.likes - 1 : post.stats.likes + 1,
-              },
-            }
-          : post
-      )
-    );
-  }, []);
+  // Supabase Real-time Message Listener
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser.id) return;
 
-  const addComment = useCallback(
-    (feedId: number, text: string) => {
-      setFeeds((prev) =>
-        prev.map((post) => {
-          if (post.id === feedId) {
-            const newComment: Comment = {
-              id: Date.now().toString(),
-              user: currentUser,
-              text,
-              time: "Just now",
-            };
-            return {
-              ...post,
-              stats: { ...post.stats, comments: post.stats.comments + 1 },
-              commentsList: [...post.commentsList, newComment],
-            };
-          }
-          return post;
-        })
-      );
-    },
-    [currentUser]
-  );
+    const channel = supabase
+      .channel("messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        async (payload: any) => {
+          const newMessage = payload.new;
 
-  const sendMessage = useCallback((chatId: string, text: string) => {
-    setChats((prev) =>
-      prev.map((chat) => {
-        if (chat.id === chatId) {
-          const newMessage: Message = {
-            id: Date.now().toString(),
-            text,
-            time: new Date().toLocaleTimeString([], {
+          // Only handle if message belongs to one of our chats
+          // (In a real app, you'd filter by chat members)
+
+          const formattedMessage: Message = {
+            id: newMessage.id,
+            text: newMessage.text,
+            time: new Date(newMessage.created_at).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
               hour12: true,
             }),
-            isMe: true,
-            status: "sent",
+            isMe: newMessage.sender_id === currentUser.id,
+            status: "delivered",
           };
-          return {
-            ...chat,
-            messages: [...chat.messages, newMessage],
-            lastMessage: { text, time: "Just now", unread: 0 },
-          };
+
+          setChats((prev) =>
+            prev.map((chat) => {
+              if (chat.id === newMessage.chat_id) {
+                return {
+                  ...chat,
+                  messages: [...chat.messages, formattedMessage],
+                  lastMessage: {
+                    text: formattedMessage.text,
+                    time: formattedMessage.time,
+                    unread: formattedMessage.isMe
+                      ? 0
+                      : (chat.lastMessage.unread || 0) + 1,
+                  },
+                };
+              }
+              return chat;
+            })
+          );
         }
-        return chat;
-      })
-    );
-  }, []);
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, currentUser.id]);
+
+  const addComment = useCallback(
+    async (feedId: string, text: string) => {
+      const { data, error } = await supabase
+        .from("comments")
+        .insert({
+          user_id: currentUser.id,
+          post_id: feedId,
+          text,
+        })
+        .select()
+        .single();
+
+      if (data) {
+        setFeeds((prev) =>
+          prev.map((post) => {
+            if (post.id.toString() === feedId.toString()) {
+              const newComment: Comment = {
+                id: data.id,
+                user: currentUser,
+                text,
+                time: "Just now",
+              };
+              return {
+                ...post,
+                stats: { ...post.stats, comments: post.stats.comments + 1 },
+                commentsList: [...post.commentsList, newComment],
+              };
+            }
+            return post;
+          })
+        );
+      }
+    },
+    [currentUser]
+  );
+
+  const sendMessage = useCallback(
+    async (chatId: string, text: string) => {
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          chat_id: chatId,
+          sender_id: currentUser.id,
+          text,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error sending message:", error.message);
+        return;
+      }
+
+      // Optimistically update is handled by the real-time listener or we can add it here too
+      // For now, we rely on the real-time listener to avoid duplicates
+    },
+    [currentUser.id]
+  );
+
+  const markChatAsRead = useCallback(
+    async (chatId: string) => {
+      const { error } = await supabase
+        .from("messages")
+        .update({ status: "read" })
+        .eq("chat_id", chatId)
+        .neq("sender_id", currentUser.id);
+
+      if (error) {
+        console.error("Error marking chat as read:", error.message);
+        return;
+      }
+
+      setChats((prev) =>
+        prev.map((chat) => {
+          if (chat.id === chatId) {
+            return {
+              ...chat,
+              messages: chat.messages.map((m) => ({ ...m, status: "read" })),
+              lastMessage: { ...chat.lastMessage, unread: 0 },
+            };
+          }
+          return chat;
+        })
+      );
+    },
+    [currentUser.id]
+  );
 
   const markStatusAsSeen = useCallback((statusId: string) => {
     setStatuses((prev) => {
@@ -529,31 +922,83 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
-  const addStatus = (items: Status["items"]) => {
+  const addStatus = async (text: string, media?: File | string) => {
+    let mediaUrl = "";
+    const mediaType = (
+      media instanceof File && media.type.startsWith("video")
+        ? "video"
+        : "image"
+    ) as "image" | "video";
+
+    if (media instanceof File) {
+      const uploaded = await uploadFile("statuses", media);
+      if (uploaded) mediaUrl = uploaded;
+    } else if (typeof media === "string") {
+      mediaUrl = media;
+    }
+
+    // Fallback for text-only status
+    if (!mediaUrl && text.trim()) {
+      mediaUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        text
+      )}&background=random&color=fff&size=512`;
+    }
+
+    const newItem: {
+      id: string;
+      type: "image" | "video";
+      url: string;
+      duration: number;
+      content?: string;
+    } = {
+      id: Date.now().toString(),
+      type: mediaType,
+      url: mediaUrl,
+      content: text,
+      duration: 5000,
+    };
+
+    const { data: existingStatus } = await supabase
+      .from("statuses")
+      .select("*")
+      .eq("user_id", currentUser.id)
+      .single();
+
+    if (existingStatus) {
+      const updatedItems = [...existingStatus.items, newItem];
+      await supabase
+        .from("statuses")
+        .update({ items: updatedItems, created_at: new Date().toISOString() })
+        .eq("user_id", currentUser.id);
+    } else {
+      await supabase.from("statuses").insert({
+        user_id: currentUser.id,
+        items: [newItem],
+      });
+    }
+
+    // Refresh statuses locally? Or just rely on re-fetching.
+    // Let's optimistic update.
     setStatuses((prev) => {
-      const existingStatusIndex = prev.findIndex(
-        (s) => s.user.id === currentUser.id
-      );
-
-      if (existingStatusIndex !== -1) {
-        const newStatuses = [...prev];
-        newStatuses[existingStatusIndex] = {
-          ...newStatuses[existingStatusIndex],
-          items: [...newStatuses[existingStatusIndex].items, ...items],
-          isUnseen: false,
-        };
-        return newStatuses;
+      const existing = prev.find((s) => s.user.id === currentUser.id);
+      if (existing) {
+        return prev.map((s) =>
+          s.user.id === currentUser.id
+            ? { ...s, items: [...s.items, newItem], isUnseen: false }
+            : s
+        );
       }
-
-      const newStatus: Status = {
-        id: Date.now().toString(),
-        user: currentUser,
-        items,
-        isUnseen: false,
-        likes: [],
-        replies: [],
-      };
-      return [newStatus, ...prev];
+      return [
+        {
+          id: Date.now().toString(),
+          user: currentUser,
+          items: [newItem],
+          isUnseen: false,
+          createdAt: new Date().toISOString(),
+          likes: [],
+        },
+        ...prev,
+      ];
     });
   };
 
@@ -660,7 +1105,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const toggleCommentLike = (feedId: number, commentId: string) => {
+  const toggleCommentLike = (feedId: string, commentId: string) => {
     setFeeds((prev) =>
       prev.map((post) => {
         if (post.id === feedId) {
@@ -678,129 +1123,228 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  const toggleFriend = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((user) =>
-        user.id === userId ? { ...user, isFriend: !user.isFriend } : user
-      )
-    );
-  };
+  const toggleFriend = useCallback(
+    async (userId: string) => {
+      // Check if following
+      const { data: existingFollow } = await supabase
+        .from("follows")
+        .select("*")
+        .eq("follower_id", currentUser.id)
+        .eq("following_id", userId)
+        .single();
 
-  const login = (email: string, password: string): boolean => {
-    const storedUsers = localStorage.getItem("registeredUsers");
-    if (storedUsers) {
-      const users = JSON.parse(storedUsers);
-      const user = users.find(
-        (u: any) => u.email === email && u.password === password
-      );
-      if (user) {
-        localStorage.setItem("authToken", "mock-token-" + Date.now());
-        localStorage.setItem(
-          "userData",
-          JSON.stringify({
-            id: user.id,
-            name: user.name,
-            handle: user.handle || user.email.split("@")[0],
-            avatar: user.avatar || user.name[0],
-            bio: user.bio || "Live-Verse user",
-            stats: user.stats || { posts: 0, followers: 0, following: 0 },
-          })
-        );
-        setCurrentUser({
-          id: user.id,
-          name: user.name,
-          handle: user.handle || user.email.split("@")[0],
-          avatar: user.avatar || user.name[0],
-          bio: user.bio || "Live-Verse user",
-          stats: user.stats || { posts: 0, followers: 0, following: 0 },
+      if (existingFollow) {
+        await supabase
+          .from("follows")
+          .delete()
+          .eq("follower_id", currentUser.id)
+          .eq("following_id", userId);
+      } else {
+        await supabase.from("follows").insert({
+          follower_id: currentUser.id,
+          following_id: userId,
         });
-        setIsAuthenticated(true);
-        return true;
       }
-    }
-    return false;
-  };
 
-  const signup = (name: string, email: string, password: string): boolean => {
-    const storedUsers = localStorage.getItem("registeredUsers");
-    const users = storedUsers ? JSON.parse(storedUsers) : [];
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === userId ? { ...user, isFriend: !user.isFriend } : user
+        )
+      );
+    },
+    [currentUser.id]
+  );
 
-    if (users.find((u: any) => u.email === email)) {
-      return false;
-    }
-
-    const newUser = {
-      id: Date.now().toString(),
-      name,
+  const login = async (email: string, password: string): Promise<boolean> => {
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
-      handle: email.split("@")[0],
-      avatar: name[0],
-      bio: "Live-Verse user",
-      stats: { posts: 0, followers: 0, following: 0 },
-    };
-
-    users.push(newUser);
-    localStorage.setItem("registeredUsers", JSON.stringify(users));
-
-    localStorage.setItem("authToken", "mock-token-" + Date.now());
-    localStorage.setItem(
-      "userData",
-      JSON.stringify({
-        id: newUser.id,
-        name: newUser.name,
-        handle: newUser.handle,
-        avatar: newUser.avatar,
-        bio: newUser.bio,
-        stats: newUser.stats,
-      })
-    );
-
-    setCurrentUser({
-      id: newUser.id,
-      name: newUser.name,
-      handle: newUser.handle,
-      avatar: newUser.avatar,
-      bio: newUser.bio,
-      stats: newUser.stats,
     });
-    setIsAuthenticated(true);
+    if (error) {
+      console.error("Login error:", error.message);
+      return false;
+    }
     return true;
   };
 
-  const logout = () => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userData");
+  const signup = async (
+    name: string,
+    email: string,
+    password: string
+  ): Promise<boolean> => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name,
+          user_name: email.split("@")[0],
+        },
+      },
+    });
+
+    if (error) {
+      console.error("Signup error:", error.message);
+      return false;
+    }
+    return true;
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
     setIsAuthenticated(false);
   };
 
-  const createPost = (text: string, image?: string) => {
-    const newPost: FeedPost = {
-      id: Date.now(),
-      user: currentUser,
-      content: { text, image },
-      stats: { likes: 0, comments: 0 },
-      liked: false,
-      commentsList: [],
-    };
-    setFeeds((prev) => [newPost, ...prev]);
+  const signInWithGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
   };
 
-  const createReel = (caption: string, video: string) => {
-    // In a real app, this would add to a reels collection
-    // For now, we'll just show a success message
-    console.log("Reel created:", { caption, video });
+  const signInWithApple = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "apple",
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
   };
 
-  const createMarketplaceItem = (
+  const uploadFile = async (bucket: string, file: File) => {
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `${currentUser.id}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error("Upload error:", uploadError.message);
+      return null;
+    }
+
+    const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
+  const createPost = async (text: string, media?: File | string) => {
+    let mediaUrl = "";
+    if (media instanceof File) {
+      const uploaded = await uploadFile("posts", media);
+      if (uploaded) mediaUrl = uploaded;
+    } else if (typeof media === "string") {
+      mediaUrl = media;
+    }
+
+    const { data, error } = await supabase
+      .from("posts")
+      .insert({
+        user_id: currentUser.id,
+        content: { text, image: mediaUrl },
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating post:", error.message);
+      return;
+    }
+
+    if (data) {
+      const newPost: FeedPost = {
+        id: data.id,
+        user: currentUser,
+        content: { text, image: mediaUrl },
+        stats: { likes: 0, comments: 0 },
+        liked: false,
+        commentsList: [],
+      };
+      setFeeds((prev) => [newPost, ...prev]);
+    }
+  };
+
+  const createReel = async (caption: string, video: File | string) => {
+    let videoUrl = "";
+    if (video instanceof File) {
+      const uploaded = await uploadFile("reels", video);
+      if (uploaded) videoUrl = uploaded;
+    } else if (typeof video === "string") {
+      videoUrl = video;
+    }
+
+    const { data, error } = await supabase
+      .from("reels")
+      .insert({
+        user_id: currentUser.id,
+        video_url: videoUrl,
+        caption,
+      })
+      .select()
+      .single();
+
+    if (data) {
+      setReels((prev) => [
+        {
+          id: data.id,
+          user: currentUser,
+          video: data.video_url,
+          caption: data.caption,
+          stats: { likes: 0, comments: 0, shares: 0 },
+        },
+        ...prev,
+      ]);
+    }
+  };
+
+  const createMarketplaceItem = async (
     name: string,
     price: string,
-    image: string,
+    image: File | string,
     category: string
   ) => {
-    // In a real app, this would add to a marketplace collection
-    // For now, we'll just show a success message
-    console.log("Marketplace item created:", { name, price, image, category });
+    let imageUrl = "";
+    if (image instanceof File) {
+      const uploaded = await uploadFile("marketplace", image);
+      if (uploaded) imageUrl = uploaded;
+    } else if (typeof image === "string") {
+      imageUrl = image;
+    }
+
+    const { data, error } = await supabase
+      .from("marketplace_items")
+      .insert({
+        seller_id: currentUser.id,
+        name,
+        price: parseFloat(price.replace(/[^0-9.]/g, "")),
+        image_url: imageUrl,
+        category,
+      })
+      .select()
+      .single();
+
+    if (data) {
+      setMarketplaceItems((prev) => [data, ...prev]);
+    }
+  };
+
+  const verifyUser = async (userId: string, verifiedStatus: boolean) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_verified: verifiedStatus })
+      .eq("id", userId);
+
+    if (error) {
+      console.error("Verification error:", error.message);
+      return;
+    }
+
+    if (currentUser.id === userId) {
+      setCurrentUser((prev) => ({ ...prev, isVerified: verifiedStatus }));
+    }
   };
 
   return (
@@ -836,6 +1380,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         createMarketplaceItem,
         settings,
         updateSettings,
+        signInWithGoogle,
+        signInWithApple,
+        markChatAsRead,
+        uploadFile,
+        verifyUser,
+        reels,
+        marketplaceItems,
       }}
     >
       {children}

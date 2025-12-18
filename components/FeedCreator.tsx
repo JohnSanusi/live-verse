@@ -14,6 +14,7 @@ interface FeedCreatorProps {
 export const FeedCreator = ({ onClose }: FeedCreatorProps) => {
   const [text, setText] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
   const { createPost, currentUser } = useApp();
   const { showToast } = useToast();
@@ -21,7 +22,7 @@ export const FeedCreator = ({ onClose }: FeedCreatorProps) => {
   const handlePost = () => {
     if (!text.trim() && !mediaUrl) return;
 
-    createPost(text, mediaUrl || undefined);
+    createPost(text, mediaFile || mediaUrl || undefined);
     showToast("Post shared", "success");
     onClose();
   };
@@ -29,6 +30,7 @@ export const FeedCreator = ({ onClose }: FeedCreatorProps) => {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setMediaFile(file);
       const url = URL.createObjectURL(file);
       setMediaUrl(url);
       setMediaType(file.type.startsWith("video") ? "video" : "image");

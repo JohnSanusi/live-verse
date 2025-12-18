@@ -14,30 +14,15 @@ interface StatusCreatorProps {
 export const StatusCreator = ({ onClose }: StatusCreatorProps) => {
   const [text, setText] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
+  const [statusFile, setStatusFile] = useState<File | null>(null);
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
   const { addStatus, currentUser } = useApp();
   const { showToast } = useToast();
 
   const handleCreate = () => {
-    if (!text.trim() && !mediaUrl) return;
+    if (!text.trim() && !mediaUrl && !statusFile) return;
 
-    const newItem = {
-      id: Date.now().toString(),
-      type: mediaType || "image",
-      url: mediaUrl,
-      content: text,
-      duration: 5000,
-    };
-
-    // If text only, generate a background
-    if (!mediaUrl && text.trim()) {
-      newItem.url = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        text
-      )}&background=random&color=fff&size=512`;
-      newItem.type = "image";
-    }
-
-    addStatus([newItem as any]);
+    addStatus(text, statusFile || mediaUrl || undefined);
     showToast("Status updated", "success");
     onClose();
   };
@@ -45,6 +30,7 @@ export const StatusCreator = ({ onClose }: StatusCreatorProps) => {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setStatusFile(file);
       const url = URL.createObjectURL(file);
       setMediaUrl(url);
       setMediaType(file.type.startsWith("video") ? "video" : "image");
