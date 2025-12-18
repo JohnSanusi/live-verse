@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { ChatListItem } from "@/components/ChatListItem";
 import { Search, Edit, Archive, FolderArchive } from "lucide-react";
@@ -21,6 +21,14 @@ export default function ChatsPage() {
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const filteredChats = chats.filter((chat) => {
     const name = chat.isGroup ? chat.groupName : chat.user?.name;
@@ -194,9 +202,9 @@ export default function ChatsPage() {
       <main className="flex-1 overflow-y-auto p-4 space-y-4 bg-background">
         {filteredChats.map((chat) => (
           <motion.div key={chat.id} layout className="relative">
-            {/* Background Action (shows on drag) */}
+            {/* Background Action (shows on drag, mobile only) */}
             <div
-              className={`absolute inset-0 rounded-3xl flex items-center justify-end px-8 transition-colors ${
+              className={`absolute inset-0 rounded-3xl flex lg:hidden items-center justify-end px-8 transition-colors ${
                 chat.isArchived ? "bg-blue-500" : "bg-primary"
               }`}
             >
@@ -208,11 +216,11 @@ export default function ChatsPage() {
             </div>
 
             <motion.div
-              drag="x"
+              drag={isMobile ? "x" : false}
               dragConstraints={{ left: -100, right: 0 }}
               dragElastic={{ left: 0.1, right: 0 }}
               onDragEnd={(e, info) => {
-                if (info.offset.x < -80) {
+                if (isMobile && info.offset.x < -80) {
                   toggleArchiveChat(chat.id);
                   showToast(
                     chat.isArchived ? "Unarchived" : "Archived",
@@ -220,7 +228,11 @@ export default function ChatsPage() {
                   );
                 }
               }}
-              className="relative z-10 bg-background active:scale-[0.98] transition-transform cursor-grab active:cursor-grabbing"
+              className={`relative z-10 bg-background transition-transform ${
+                isMobile
+                  ? "active:scale-[0.98] cursor-grab active:cursor-grabbing"
+                  : ""
+              }`}
             >
               <ChatListItem
                 {...chat}
@@ -236,6 +248,7 @@ export default function ChatsPage() {
                     : chat.user?.status || "offline",
                   isVerified: !chat.isGroup && chat.user?.isVerified,
                 }}
+                isArchived={chat.isArchived}
                 onArchive={() => {
                   toggleArchiveChat(chat.id);
                   showToast(

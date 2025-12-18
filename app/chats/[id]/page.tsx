@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -10,8 +11,8 @@ import {
   Send,
   Paperclip,
   Mic,
-  BadgeCheck,
 } from "lucide-react";
+import { EliteBadge } from "@/components/EliteBadge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { MessageBubble } from "@/components/MessageBubble";
@@ -26,6 +27,7 @@ export default function ChatDetailPage() {
   const { showToast, confirm } = useToast();
   const [text, setText] = useState("");
   const [showOptions, setShowOptions] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const chat = chats.find((c) => c.id === chatId);
@@ -36,7 +38,16 @@ export default function ChatDetailPage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [chat?.messages]);
+  }, [chat?.messages, isTyping]);
+
+  useEffect(() => {
+    // Simulate typing indicator when entering chat
+    const timeout = setTimeout(() => {
+      setIsTyping(true);
+      setTimeout(() => setIsTyping(false), 3000);
+    }, 1000);
+    return () => clearTimeout(timeout);
+  }, [chatId]);
 
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -118,10 +129,7 @@ export default function ChatDetailPage() {
                   {chat.isGroup ? chat.groupName : chat.user.name}
                 </h3>
                 {!chat.isGroup && chat.user.isVerified && (
-                  <BadgeCheck
-                    size={14}
-                    className="text-blue-500 fill-blue-500"
-                  />
+                  <EliteBadge size={14} />
                 )}
               </div>
               <span
@@ -192,10 +200,42 @@ export default function ChatDetailPage() {
       </header>
 
       {/* Messages Area */}
-      <main className="flex-1 overflow-y-auto p-4">
+      <main className="flex-1 overflow-y-auto p-4 space-y-4">
         {chat.messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}
+
+        {isTyping && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 px-2 py-1 select-none"
+          >
+            <div className="flex gap-1 h-4 items-center">
+              <motion.div
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ repeat: Infinity, duration: 0.6, delay: 0 }}
+                className="w-1 h-1 rounded-full bg-primary/40"
+              />
+              <motion.div
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }}
+                className="w-1 h-1 rounded-full bg-primary/60"
+              />
+              <motion.div
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }}
+                className="w-1 h-1 rounded-full bg-primary"
+              />
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 animate-pulse">
+              {chat.isGroup
+                ? "Someone is typing..."
+                : `${chat.user.name} is typing...`}
+            </span>
+          </motion.div>
+        )}
+
         <div ref={messagesEndRef} />
       </main>
 

@@ -31,12 +31,13 @@ export default function FeedsPage() {
         title="Feed"
         action={
           <Button
-            variant="ghost"
+            variant="primary"
             size="sm"
-            className="h-9 w-9 p-0 rounded-full"
+            className="h-9 px-4 rounded-full flex items-center gap-2 font-bold"
             onClick={() => setShowCreatePost(true)}
           >
-            <Plus size={20} />
+            <Plus size={18} />
+            <span className="text-xs">Create Post</span>
           </Button>
         }
       />

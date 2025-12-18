@@ -77,10 +77,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
             key={toast.id}
             className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300 ${
               toast.type === "success"
-                ? "bg-black border-primary text-primary"
+                ? "bg-background border-primary text-primary"
                 : toast.type === "error"
-                ? "bg-black border-red-500 text-red-500"
-                : "bg-black border-border text-foreground"
+                ? "bg-background border-red-500 text-red-500"
+                : "bg-background border-border text-foreground"
             }`}
           >
             {toast.type === "success" && <CheckCircle size={18} />}
@@ -99,7 +99,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
 
       {/* Confirm Modal */}
       {confirmOptions && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-background border border-border rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95 duration-200">
             <h3 className="text-lg font-bold mb-2">{confirmOptions.title}</h3>
             <p className="text-sm text-muted-foreground mb-6">

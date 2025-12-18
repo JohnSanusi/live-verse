@@ -1,16 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  X,
-  ChevronLeft,
-  ChevronRight,
-  BadgeCheck,
-  Heart,
-  Send,
-} from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Heart, Send } from "lucide-react";
 import { Status, useApp } from "@/context/AppContext";
 import { Button } from "@/components/ui/Button";
+import { EliteBadge } from "./EliteBadge";
 
 interface StatusViewerProps {
   statuses: Status[];
@@ -29,6 +23,8 @@ export const StatusViewer = ({
   const [currentItemIndex, setCurrentItemIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [replyText, setReplyText] = useState("");
+  const [isPaused, setIsPaused] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
 
   const currentStatus = statuses[currentStatusIndex];
   const currentItem = currentStatus.items[currentItemIndex];
@@ -67,22 +63,43 @@ export const StatusViewer = ({
     markStatusAsSeen(currentStatus.id);
   }, [currentStatus.id, markStatusAsSeen]);
 
+  // Handle Video Playback and Timer Logic
   useEffect(() => {
+    if (isPaused) {
+      if (videoRef.current) videoRef.current.pause();
+      return;
+    }
+
+    if (currentItem.type === "video") {
+      if (videoRef.current) videoRef.current.play().catch(() => {});
+      return;
+    }
+
+    // Timer for images
     const duration = currentItem.duration || 5000;
     const interval = 100;
     const step = 100 / (duration / interval);
 
     const timer = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          handleNext();
-          return 0;
-        }
-        return prev + step;
-      });
+      setProgress((prev) => Math.min(prev + step, 100));
     }, interval);
+
     return () => clearInterval(timer);
-  }, [currentItem, handleNext]);
+  }, [currentItem, handleNext, isPaused]);
+
+  // Separate effect to handle auto-advancing when progress reaches 100
+  useEffect(() => {
+    if (progress >= 100 && currentItem.type === "image") {
+      handleNext();
+    }
+  }, [progress, handleNext, currentItem.type]);
+
+  const handleVideoTimeUpdate = () => {
+    if (videoRef.current && currentItem.type === "video") {
+      const { currentTime, duration } = videoRef.current;
+      setProgress((currentTime / duration) * 100);
+    }
+  };
 
   const handleReply = (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,13 +159,10 @@ export const StatusViewer = ({
               <p className="text-white font-bold text-sm">
                 {currentStatus.user.name}
               </p>
-              {currentStatus.user.isVerified && (
-                <BadgeCheck size={14} className="text-blue-500 fill-blue-500" />
-              )}
+              {currentStatus.user.isVerified && <EliteBadge size={14} />}
             </div>
             <p className="text-white/60 text-[10px] sm:text-xs">
-              {currentItemIndex + 1} of {currentStatus.items.length} •{" "}
-              {currentItem.content || "Just now"}
+              {currentItemIndex + 1} of {currentStatus.items.length} • Just now
             </p>
           </div>
         </div>
@@ -163,7 +177,13 @@ export const StatusViewer = ({
       </div>
 
       {/* Main Content */}
-      <div className="relative flex-1 flex items-center justify-center select-none overflow-hidden">
+      <div
+        className="relative flex-1 flex items-center justify-center select-none overflow-hidden"
+        onPointerDown={() => setIsPaused(true)}
+        onPointerUp={() => setIsPaused(false)}
+        onPointerLeave={() => setIsPaused(false)}
+        onPointerCancel={() => setIsPaused(false)}
+      >
         {currentItem.type === "image" ? (
           <img
             src={currentItem.url}
@@ -172,58 +192,78 @@ export const StatusViewer = ({
           />
         ) : (
           <video
+            ref={videoRef}
             src={currentItem.url}
             autoPlay
             muted
             playsInline
+            onTimeUpdate={handleVideoTimeUpdate}
+            onEnded={handleNext}
             className="w-full max-h-screen object-contain"
           />
         )}
 
         {/* Navigation Overlays */}
         <div
-          className="absolute inset-y-0 left-0 w-1/3 z-20"
-          onClick={handlePrev}
+          className="absolute inset-y-0 left-0 w-1/3 z-20 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePrev();
+          }}
         />
         <div
-          className="absolute inset-y-0 right-0 w-2/3 z-20"
-          onClick={handleNext}
+          className="absolute inset-y-0 right-0 w-2/3 z-20 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleNext();
+          }}
         />
       </div>
 
       {/* Footer Actions */}
-      <div className="p-4 pb-8 sm:pb-4 z-50 bg-gradient-to-t from-black/80 to-transparent">
-        <div className="flex items-center gap-3 max-w-lg mx-auto w-full">
-          <form className="flex-1 relative" onSubmit={handleReply}>
-            <input
-              type="text"
-              placeholder="Reply..."
-              className="w-full h-12 bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/30"
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-            />
-            {replyText.trim() && (
-              <button
-                type="submit"
-                className="absolute right-2 top-2 h-8 w-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center active-scale"
-              >
-                <Send size={16} />
-              </button>
-            )}
-          </form>
-          <button
-            className={`flex flex-col items-center justify-center transition-transform active:scale-75 ${
-              isLiked ? "text-red-500" : "text-white"
-            }`}
-            onClick={() => toggleStatusLike(currentStatus.id)}
-          >
-            <Heart size={28} className={isLiked ? "fill-current" : ""} />
-            {currentStatus.likes && currentStatus.likes.length > 0 && (
-              <span className="text-[10px] font-bold mt-0.5">
-                {currentStatus.likes.length}
-              </span>
-            )}
-          </button>
+      <div className="p-4 pb-8 sm:pb-4 z-50 bg-gradient-to-t from-black to-transparent">
+        <div className="max-w-lg mx-auto w-full space-y-4">
+          {/* High-Contrast Caption Tray */}
+          {currentItem.content && (
+            <div className="bg-black/80 backdrop-blur-md rounded-2xl px-5 py-3 border border-white/10 shadow-xl">
+              <p className="text-white text-center text-sm sm:text-base font-medium leading-relaxed">
+                {currentItem.content}
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <form className="flex-1 relative" onSubmit={handleReply}>
+              <input
+                type="text"
+                placeholder="Reply..."
+                className="w-full h-12 bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/30"
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+              />
+              {replyText.trim() && (
+                <button
+                  type="submit"
+                  className="absolute right-2 top-2 h-8 w-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center active-scale"
+                >
+                  <Send size={16} />
+                </button>
+              )}
+            </form>
+            <button
+              className={`flex flex-col items-center justify-center transition-transform active:scale-75 ${
+                isLiked ? "text-red-500" : "text-white"
+              }`}
+              onClick={() => toggleStatusLike(currentStatus.id)}
+            >
+              <Heart size={28} className={isLiked ? "fill-current" : ""} />
+              {currentStatus.likes && currentStatus.likes.length > 0 && (
+                <span className="text-[10px] font-bold mt-0.5">
+                  {currentStatus.likes.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

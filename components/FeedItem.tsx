@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { Heart, MessageCircle, Share2, Send, BadgeCheck } from "lucide-react";
+import { Heart, MessageCircle, Share2, Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FeedPost, Comment } from "@/context/AppContext";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
+import { EliteBadge } from "./EliteBadge";
 
 interface FeedItemProps extends FeedPost {
   onLike: () => void;
@@ -66,9 +67,7 @@ export const FeedItem = ({
           <div className="flex-1">
             <div className="flex items-center gap-1">
               <h3 className="font-bold text-sm">{user.name}</h3>
-              {user.isVerified && (
-                <BadgeCheck size={14} className="text-blue-500 fill-blue-500" />
-              )}
+              {user.isVerified && <EliteBadge size={14} />}
             </div>
             <p className="text-xs text-muted-foreground">@{user.handle}</p>
           </div>
@@ -90,7 +89,7 @@ export const FeedItem = ({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full bg-neutral-900 flex items-center justify-center text-muted-foreground">
+            <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground">
               Image Content
             </div>
           )}

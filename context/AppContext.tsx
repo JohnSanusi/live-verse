@@ -5,6 +5,7 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useCallback,
   ReactNode,
 } from "react";
 
@@ -410,6 +411,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     darkMode: true,
   });
 
+  // Load settings on mount
+  useEffect(() => {
+    const savedSettings = localStorage.getItem("appSettings");
+    if (savedSettings) {
+      setSettings(JSON.parse(savedSettings));
+    }
+  }, []);
+
+  // Persist settings & Apply theme
+  useEffect(() => {
+    localStorage.setItem("appSettings", JSON.stringify(settings));
+
+    // Apply dark mode to document
+    if (settings.darkMode) {
+      document.documentElement.classList.add("dark");
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+
+    console.log("Theme updated:", settings.darkMode ? "dark" : "light");
+  }, [settings]);
+
   // Check auth on mount
   useEffect(() => {
     const authToken = localStorage.getItem("authToken");
@@ -426,7 +451,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("userData", JSON.stringify(updated));
   };
 
-  const toggleLike = (feedId: number) => {
+  const toggleLike = useCallback((feedId: number) => {
     setFeeds((prev) =>
       prev.map((post) =>
         post.id === feedId
@@ -441,30 +466,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           : post
       )
     );
-  };
+  }, []);
 
-  const addComment = (feedId: number, text: string) => {
-    setFeeds((prev) =>
-      prev.map((post) => {
-        if (post.id === feedId) {
-          const newComment: Comment = {
-            id: Date.now().toString(),
-            user: currentUser,
-            text,
-            time: "Just now",
-          };
-          return {
-            ...post,
-            stats: { ...post.stats, comments: post.stats.comments + 1 },
-            commentsList: [...post.commentsList, newComment],
-          };
-        }
-        return post;
-      })
-    );
-  };
+  const addComment = useCallback(
+    (feedId: number, text: string) => {
+      setFeeds((prev) =>
+        prev.map((post) => {
+          if (post.id === feedId) {
+            const newComment: Comment = {
+              id: Date.now().toString(),
+              user: currentUser,
+              text,
+              time: "Just now",
+            };
+            return {
+              ...post,
+              stats: { ...post.stats, comments: post.stats.comments + 1 },
+              commentsList: [...post.commentsList, newComment],
+            };
+          }
+          return post;
+        })
+      );
+    },
+    [currentUser]
+  );
 
-  const sendMessage = (chatId: string, text: string) => {
+  const sendMessage = useCallback((chatId: string, text: string) => {
     setChats((prev) =>
       prev.map((chat) => {
         if (chat.id === chatId) {
@@ -488,15 +516,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         return chat;
       })
     );
-  };
+  }, []);
 
-  const markStatusAsSeen = (statusId: string) => {
-    setStatuses((prev) =>
-      prev.map((status) =>
-        status.id === statusId ? { ...status, isUnseen: false } : status
-      )
-    );
-  };
+  const markStatusAsSeen = useCallback((statusId: string) => {
+    setStatuses((prev) => {
+      const status = prev.find((s) => s.id === statusId);
+      if (!status || !status.isUnseen) return prev;
+
+      return prev.map((s) =>
+        s.id === statusId ? { ...s, isUnseen: false } : s
+      );
+    });
+  }, []);
 
   const addStatus = (items: Status["items"]) => {
     setStatuses((prev) => {
@@ -526,51 +557,61 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const toggleStatusLike = (statusId: string) => {
-    setStatuses((prev) =>
-      prev.map((s) => {
-        if (s.id === statusId) {
-          const likes = s.likes || [];
-          const liked = likes.includes(currentUser.id);
-          return {
-            ...s,
-            likes: liked
-              ? likes.filter((id) => id !== currentUser.id)
-              : [...likes, currentUser.id],
-          };
-        }
-        return s;
-      })
-    );
-  };
+  const toggleStatusLike = useCallback(
+    (statusId: string) => {
+      setStatuses((prev) =>
+        prev.map((s) => {
+          if (s.id === statusId) {
+            const likes = s.likes || [];
+            const liked = likes.includes(currentUser.id);
+            return {
+              ...s,
+              likes: liked
+                ? likes.filter((id) => id !== currentUser.id)
+                : [...likes, currentUser.id],
+            };
+          }
+          return s;
+        })
+      );
+    },
+    [currentUser.id]
+  );
 
-  const replyToStatus = (statusId: string, text: string) => {
-    setStatuses((prev) =>
-      prev.map((s) => {
-        if (s.id === statusId) {
-          const replies = s.replies || [];
-          return {
-            ...s,
-            replies: [
-              ...replies,
-              {
-                userId: currentUser.id,
-                text,
-                time: new Date().toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }),
-              },
-            ],
-          };
-        }
-        return s;
-      })
-    );
-  };
+  const replyToStatus = useCallback(
+    (statusId: string, text: string) => {
+      setStatuses((prev) =>
+        prev.map((s) => {
+          if (s.id === statusId) {
+            const replies = s.replies || [];
+            return {
+              ...s,
+              replies: [
+                ...replies,
+                {
+                  userId: currentUser.id,
+                  text,
+                  time: new Date().toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                },
+              ],
+            };
+          }
+          return s;
+        })
+      );
+    },
+    [currentUser.id]
+  );
 
   const updateSettings = (newSettings: Partial<typeof settings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+    setSettings((prev) => {
+      const updated = { ...prev, ...newSettings };
+      console.log("Updating settings:", updated);
+      return updated;
+    });
   };
 
   const toggleArchiveChat = (chatId: string) => {

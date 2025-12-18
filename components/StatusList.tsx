@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, BadgeCheck } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { StatusViewer } from "./StatusViewer";
 import { StatusCreator } from "./StatusCreator";
+import { EliteBadge } from "./EliteBadge";
 
 export const StatusList = () => {
   const { statuses, currentUser } = useApp();
@@ -73,12 +74,7 @@ export const StatusList = () => {
             <span className="text-[10px] font-medium text-foreground truncate">
               {status.user.name.split(" ")[0]}
             </span>
-            {status.user.isVerified && (
-              <BadgeCheck
-                size={10}
-                className="text-blue-500 fill-blue-500 text-white flex-shrink-0"
-              />
-            )}
+            {status.user.isVerified && <EliteBadge size={10} />}
           </div>
         </button>
       ))}

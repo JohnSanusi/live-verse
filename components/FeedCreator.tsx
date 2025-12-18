@@ -22,7 +22,7 @@ export const FeedCreator = ({ onClose }: FeedCreatorProps) => {
     if (!text.trim() && !mediaUrl) return;
 
     createPost(text, mediaUrl || undefined);
-    showToast("Transmitted to the void", "success");
+    showToast("Post shared", "success");
     onClose();
   };
 
@@ -40,7 +40,7 @@ export const FeedCreator = ({ onClose }: FeedCreatorProps) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[150] bg-black/90 backdrop-blur-xl flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-[150] bg-background/90 backdrop-blur-xl flex items-end sm:items-center justify-center p-0 sm:p-4"
     >
       <motion.div
         initial={{ y: "100%" }}
@@ -63,10 +63,10 @@ export const FeedCreator = ({ onClose }: FeedCreatorProps) => {
             </div>
             <div>
               <h2 className="text-lg font-black tracking-tight text-foreground">
-                New Transmission
+                Create Post
               </h2>
               <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
-                Public Protocol 1.0
+                Public Feed
               </p>
             </div>
           </div>
@@ -82,7 +82,7 @@ export const FeedCreator = ({ onClose }: FeedCreatorProps) => {
 
         <div className="space-y-6">
           <textarea
-            placeholder="What's happening in your sector?"
+            placeholder="What's on your mind?"
             className="w-full bg-transparent border-none rounded-2xl p-0 min-h-[150px] resize-none focus:outline-none text-xl placeholder:text-muted-foreground/40 font-medium"
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -107,7 +107,7 @@ export const FeedCreator = ({ onClose }: FeedCreatorProps) => {
                   />
                 )}
                 <button
-                  className="absolute top-4 right-4 h-8 w-8 bg-black/50 backdrop-blur-md text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-4 right-4 h-8 w-8 bg-secondary/80 backdrop-blur-md text-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => {
                     setMediaUrl("");
                     setMediaType(null);
@@ -151,7 +151,7 @@ export const FeedCreator = ({ onClose }: FeedCreatorProps) => {
               onClick={handlePost}
               disabled={!text.trim() && !mediaUrl}
             >
-              Execute
+              Post
               <Send size={14} className="ml-2" />
             </Button>
           </div>

@@ -14,10 +14,13 @@ import {
 import { Button } from "@/components/ui/Button";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/ui/Toast";
+import { Switch } from "@/components/ui/Switch";
+import { useRouter } from "next/navigation";
 
 export default function SettingsPage() {
   const { currentUser, logout, settings, updateSettings } = useApp();
   const { confirm, showToast } = useToast();
+  const router = useRouter();
 
   const handleLogout = () => {
     confirm({
@@ -39,8 +42,10 @@ export default function SettingsPage() {
   };
 
   const toggleDarkMode = () => {
-    updateSettings({ darkMode: !settings.darkMode });
-    showToast(`${!settings.darkMode ? "Dark Mode" : "Light Mode"} set`, "info");
+    const nextValue = !settings.darkMode;
+    console.log("Toggling dark mode to:", nextValue);
+    updateSettings({ darkMode: nextValue });
+    showToast(`${nextValue ? "Dark Mode" : "Light Mode"} set`, "info");
   };
 
   const cyclePrivacy = () => {
@@ -57,7 +62,7 @@ export default function SettingsPage() {
           icon: User,
           label: "Edit Profile",
           value: currentUser.name,
-          action: () => (window.location.href = `/profile`),
+          action: () => router.push(`/profile?edit=true`),
         },
         {
           icon: Shield,
@@ -95,7 +100,7 @@ export default function SettingsPage() {
       <main className="p-4 space-y-6 max-w-2xl mx-auto">
         {/* Profile Card */}
         <button
-          onClick={() => (window.location.href = `/profile`)}
+          onClick={() => router.push(`/profile`)}
           className="w-full bg-secondary/30 rounded-3xl p-5 flex items-center gap-4 border border-border/50 hover:bg-secondary/50 transition-all active-scale"
         >
           <div className="h-20 w-20 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-3xl border-2 border-primary/30 overflow-hidden shadow-inner">
@@ -128,10 +133,10 @@ export default function SettingsPage() {
             </h3>
             <div className="bg-secondary/20 rounded-[2rem] border border-border/50 overflow-hidden backdrop-blur-sm">
               {section.items.map((item, idx) => (
-                <button
+                <div
                   key={item.label}
                   onClick={item.action}
-                  className={`w-full flex items-center gap-4 p-5 hover:bg-primary/5 transition-all active:bg-primary/10 ${
+                  className={`w-full flex items-center gap-4 p-5 hover:bg-primary/5 transition-all active:bg-primary/10 cursor-pointer ${
                     idx !== section.items.length - 1
                       ? "border-b border-border/50"
                       : ""
@@ -147,13 +152,31 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Visual toggle for booleans could go here, but value text is enough for now */}
-                    <ChevronRight
-                      size={16}
-                      className="text-muted-foreground opacity-50"
-                    />
+                    {item.label === "Notifications" ||
+                    item.label === "Appearance" ? (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Switch
+                          checked={
+                            item.label === "Notifications"
+                              ? settings.notifications
+                              : settings.darkMode
+                          }
+                          onCheckedChange={item.action}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">
+                          {item.value}
+                        </span>
+                        <ChevronRight
+                          size={16}
+                          className="text-muted-foreground opacity-50"
+                        />
+                      </div>
+                    )}
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           </div>

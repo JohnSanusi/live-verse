@@ -118,12 +118,13 @@ export default function MarketplacePage() {
         action={
           <div className="flex gap-2">
             <Button
-              variant="ghost"
+              variant="primary"
               size="sm"
-              className="h-9 w-9 p-0 rounded-full"
+              className="h-9 px-4 rounded-full flex items-center gap-2 font-bold"
               onClick={() => setShowCreateItem(true)}
             >
-              <Plus size={20} />
+              <Plus size={18} />
+              <span className="text-xs">Sell</span>
             </Button>
             <Button
               variant="ghost"

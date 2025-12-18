@@ -3,18 +3,21 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Settings, Edit2, Check, X, Camera } from "lucide-react";
 import { User, useApp } from "@/context/AppContext";
+import { EliteBadge } from "./EliteBadge";
 
 interface ProfileHeaderProps {
   user: User;
   isCurrentUser?: boolean;
+  autoEdit?: boolean;
 }
 
 export const ProfileHeader = ({
   user,
   isCurrentUser = true,
+  autoEdit = false,
 }: ProfileHeaderProps) => {
   const { updateProfile, toggleFriend } = useApp();
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(autoEdit);
   const [editName, setEditName] = useState(user.name);
   const [editBio, setEditBio] = useState(user.bio);
 
@@ -177,7 +180,10 @@ export const ProfileHeader = ({
               className="mb-1 h-8 font-bold text-lg"
             />
           ) : (
-            <h1 className="text-xl font-bold text-foreground">{user.name}</h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-xl font-bold text-foreground">{user.name}</h1>
+              {user.isVerified && <EliteBadge size={18} />}
+            </div>
           )}
           <p className="text-sm text-muted-foreground">@{user.handle}</p>
         </div>

@@ -7,8 +7,12 @@ import { Grid, List } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useApp } from "@/context/AppContext";
 
+import { useSearchParams } from "next/navigation";
+
 export default function ProfilePage() {
   const { currentUser, feeds, toggleLike, addComment } = useApp();
+  const searchParams = useSearchParams();
+  const autoEdit = searchParams.get("edit") === "true";
 
   // Filter posts by current user (mock logic, assuming user posts are in feeds)
   // For this prototype, we'll just show all feeds as "user's posts" to populate the view
@@ -17,16 +21,24 @@ export default function ProfilePage() {
 
   return (
     <div className="pb-20 min-h-screen bg-background">
-      <ProfileHeader user={currentUser} />
-      
+      <ProfileHeader user={currentUser} autoEdit={autoEdit} />
+
       <div className="px-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-foreground">Posts</h2>
           <div className="flex bg-secondary/50 rounded-lg p-1">
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded bg-background shadow-sm">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 rounded bg-background shadow-sm"
+            >
               <List size={16} />
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 rounded text-muted-foreground"
+            >
               <Grid size={16} />
             </Button>
           </div>
@@ -34,11 +46,11 @@ export default function ProfilePage() {
 
         <div className="space-y-4">
           {userPosts.map((post) => (
-            <FeedItem 
-                key={post.id} 
-                {...post} 
-                onLike={() => toggleLike(post.id)}
-                onComment={(text) => addComment(post.id, text)}
+            <FeedItem
+              key={post.id}
+              {...post}
+              onLike={() => toggleLike(post.id)}
+              onComment={(text) => addComment(post.id, text)}
             />
           ))}
         </div>
