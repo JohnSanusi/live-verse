@@ -966,6 +966,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       console.error("Signup error:", error.message);
       return false;
     }
+    if (data.user) {
+      // Create public profile
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: data.user.id,
+        name: name,
+        handle: email.split("@")[0],
+        avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          name
+        )}&background=random&color=fff&size=512`,
+        bio: "Digital explorer",
+      });
+
+      if (profileError) {
+        console.error("Profile creation error:", profileError.message);
+      }
+    }
+
     return true;
   };
 
