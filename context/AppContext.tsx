@@ -125,7 +125,7 @@ interface AppContextType {
   replyToStatus: (statusId: string, text: string) => void;
   toggleArchiveChat: (chatId: string) => void;
   createGroupChat: (name: string, memberIds: string[]) => void;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<string | null>;
   signup: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
   createPost: (text: string, media?: File | string) => Promise<void>;
@@ -931,16 +931,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     [currentUser.id]
   );
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<string | null> => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     if (error) {
       console.error("Login error:", error.message);
-      return false;
+      return error.message;
     }
-    return true;
+    return null;
   };
 
   const signup = async (

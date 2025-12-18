@@ -36,10 +36,11 @@ export default function LoginPage() {
     // Simulate network delay for premium feel
     await new Promise((r) => setTimeout(r, 1000));
 
-    if (await login(email, password)) {
+    const errorMsg = await login(email, password);
+    if (!errorMsg) {
       router.push("/");
     } else {
-      setError("Identity verification failed. Please check your credentials.");
+      setError(errorMsg);
       setIsLoading(false);
     }
   };
