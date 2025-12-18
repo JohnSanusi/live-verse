@@ -9,9 +9,9 @@ export const BottomNav = () => {
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
+    { href: "/chats", icon: MessageCircle, label: "Chats" },
     { href: "/reels", icon: Video, label: "Reels" },
     { href: "/marketplace", icon: ShoppingBag, label: "Market" },
-    { href: "/chats", icon: MessageCircle, label: "Chats" },
     { href: "/settings", icon: User, label: "Settings" },
   ];
 

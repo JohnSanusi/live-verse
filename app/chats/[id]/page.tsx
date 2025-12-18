@@ -152,26 +152,26 @@ export default function ChatDetailPage() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 rounded-full active-scale"
+            className="h-10 w-10 p-0 rounded-full active-scale"
             onClick={() => handleCall("voice")}
           >
-            <Phone size={18} />
+            <Phone size={22} />
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 rounded-full active-scale"
+            className="h-10 w-10 p-0 rounded-full active-scale"
             onClick={() => handleCall("video")}
           >
-            <Video size={18} />
+            <Video size={22} />
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 rounded-full active-scale"
+            className="h-10 w-10 p-0 rounded-full active-scale"
             onClick={() => setShowOptions(!showOptions)}
           >
-            <MoreVertical size={18} />
+            <MoreVertical size={22} />
           </Button>
 
           {showOptions && (
@@ -246,10 +246,10 @@ export default function ChatDetailPage() {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-10 w-10 p-0 rounded-full text-muted-foreground hover:text-primary active-scale"
+            className="h-11 w-11 p-0 rounded-full text-muted-foreground hover:text-primary active-scale"
             onClick={handleFileAttach}
           >
-            <Paperclip size={20} />
+            <Paperclip size={22} />
           </Button>
           <div className="flex-1 relative">
             <Input
@@ -262,21 +262,21 @@ export default function ChatDetailPage() {
               type="button"
               variant="ghost"
               size="sm"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-primary active-scale"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-full text-muted-foreground hover:text-primary active-scale"
               onClick={() => {
                 sendMessage(chatId, "🎤 [Voice Message] (0:15)");
                 showToast("Voice message sent!", "success");
               }}
             >
-              <Mic size={18} />
+              <Mic size={22} />
             </Button>
           </div>
           <Button
             type="submit"
             size="sm"
-            className="h-10 w-10 p-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active-scale"
+            className="h-11 w-11 p-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active-scale shadow-lg shadow-primary/20"
           >
-            <Send size={18} className="ml-0.5" />
+            <Send size={22} className="ml-0.5" />
           </Button>
         </form>
       </div>

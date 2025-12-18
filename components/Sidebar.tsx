@@ -23,8 +23,8 @@ export const Sidebar = () => {
 
   const navItems = [
     { href: "/", icon: Home, label: "Feed" },
-    { href: "/reels", icon: Video, label: "Reels" },
     { href: "/chats", icon: MessageCircle, label: "Chats" },
+    { href: "/reels", icon: Video, label: "Reels" },
     { href: "/marketplace", icon: ShoppingBag, label: "Marketplace" },
     { href: "/profile", icon: User, label: "Profile" },
   ];

@@ -110,13 +110,14 @@ export default function ReelsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-md"
+            className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-md"
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-background border border-border rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-background border-t sm:border border-border rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-md p-6 sm:p-8 shadow-2xl relative"
             >
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-2xl font-black tracking-tight">
@@ -239,7 +240,7 @@ export default function ReelsPage() {
               <div className="absolute inset-x-0 top-0 h-1/4 bg-gradient-to-b from-black/40 to-transparent z-10" />
 
               {/* Overlay Content */}
-              <div className="absolute inset-0 flex flex-col justify-end p-4 pb-28 sm:pb-16 z-20">
+              <div className="absolute inset-x-0 bottom-0 flex flex-col justify-end p-4 pb-32 sm:pb-20 z-20">
                 <style jsx>{`
                   @keyframes scroll-text {
                     0% {
@@ -285,9 +286,9 @@ export default function ReelsPage() {
                         </p>
                       </Link>
                       <Button
-                        variant="secondary"
+                        variant="primary"
                         size="sm"
-                        className="h-8 px-4 rounded-full bg-white text-black hover:bg-white/90 text-[11px] font-black tracking-tight active-scale ml-2 shadow-lg border-none"
+                        className="h-8 px-4 rounded-full bg-primary text-primary-foreground text-[11px] font-black tracking-tight active-scale ml-2 shadow-[0_4px_12px_rgba(255,215,0,0.3)] border-none"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleAction("Following");
@@ -319,7 +320,7 @@ export default function ReelsPage() {
                   </div>
 
                   {/* Sidebar Actions */}
-                  <div className="flex flex-col gap-5 items-center mb-8">
+                  <div className="flex flex-col gap-6 items-center mb-10">
                     <div className="flex flex-col items-center gap-1">
                       <button
                         className={`h-10 w-10 rounded-full flex items-center justify-center transition-all active:scale-75 ${
