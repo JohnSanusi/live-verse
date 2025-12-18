@@ -236,6 +236,13 @@ export default function ChatsPage() {
                     : chat.user?.status || "offline",
                   isVerified: !chat.isGroup && chat.user?.isVerified,
                 }}
+                onArchive={() => {
+                  toggleArchiveChat(chat.id);
+                  showToast(
+                    chat.isArchived ? "Unarchived" : "Archived",
+                    "info"
+                  );
+                }}
               />
             </motion.div>
           </motion.div>

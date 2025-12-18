@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
-import { BadgeCheck, Users } from "lucide-react";
+import { BadgeCheck, Users, Archive } from "lucide-react";
 
 interface ChatListItemProps {
   id: string;
@@ -19,6 +19,7 @@ interface ChatListItemProps {
   isGroup?: boolean;
   groupName?: string;
   groupAvatar?: string;
+  onArchive?: (e: React.MouseEvent) => void;
 }
 
 export const ChatListItem = ({
@@ -28,12 +29,13 @@ export const ChatListItem = ({
   isGroup,
   groupName,
   groupAvatar,
+  onArchive,
 }: ChatListItemProps) => {
   const displayName = isGroup ? groupName : user.name;
 
   return (
     <Link href={`/chats/${id}`}>
-      <Card className="mb-2 border-none bg-transparent hover:bg-secondary/30 transition-colors p-3 active-scale">
+      <Card className="mb-2 border-none bg-transparent hover:bg-secondary/30 transition-colors p-3 active-scale group/item">
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="h-12 w-12 rounded-full bg-muted overflow-hidden border border-border/50">
@@ -99,6 +101,21 @@ export const ChatListItem = ({
               )}
             </div>
           </div>
+
+          {/* Desktop Archive Button */}
+          {onArchive && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onArchive(e);
+              }}
+              className="hidden md:flex h-8 w-8 items-center justify-center rounded-full bg-secondary/50 hover:bg-primary hover:text-primary-foreground transition-all active:scale-90 opacity-0 group-hover/item:opacity-100"
+              title="Archive Frequency"
+            >
+              <Archive size={16} />
+            </button>
+          )}
         </div>
       </Card>
     </Link>

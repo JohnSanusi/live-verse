@@ -68,15 +68,19 @@ export const StatusViewer = ({
   }, [currentStatus.id, markStatusAsSeen]);
 
   useEffect(() => {
+    const duration = currentItem.duration || 5000;
+    const interval = 100;
+    const step = 100 / (duration / interval);
+
     const timer = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
           handleNext();
           return 0;
         }
-        return prev + 100 / (currentItem.duration / 100);
+        return prev + step;
       });
-    }, 100);
+    }, interval);
     return () => clearInterval(timer);
   }, [currentItem, handleNext]);
 
