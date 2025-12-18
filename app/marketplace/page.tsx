@@ -227,7 +227,7 @@ export default function MarketplacePage() {
                     {product.seller ||
                       (product.profiles?.name ?? "Unknown Seller")}
                   </p>
-                  {product.profiles?.is_verified && <EliteBadge size={10} />}
+                  {product.profiles?.isVerified && <EliteBadge size={10} />}
                 </div>
                 <div className="space-y-2">
                   <span className="text-primary font-bold block">

@@ -146,250 +146,12 @@ interface AppContextType {
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   uploadFile: (bucket: string, file: File) => Promise<string | null>;
+  searchUsers: (query: string) => Promise<User[]>;
   reels: any[];
   marketplaceItems: any[];
 }
 
-// --- Mock Data Generators ---
-const MOCK_USER: User = {
-  id: "me",
-  name: "Zen Master",
-  handle: "zen_master",
-  avatar: "Z",
-  bio: "Digital explorer & code artisan. Building the future of messaging with Live-Verse. 🚀 #coding #react #nextjs",
-  status: "online",
-  stats: { posts: 42, followers: 1250, following: 340 },
-  isVerified: true,
-};
-
-const MOCK_USERS: User[] = [
-  {
-    id: "1",
-    name: "Alex Johnson",
-    handle: "alex_j",
-    avatar:
-      "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
-    bio: "UI/UX Designer | Art Enthusiast",
-    stats: { posts: 12, followers: 450, following: 210 },
-    status: "online",
-    isFriend: true,
-    isVerified: true,
-  },
-  {
-    id: "2",
-    name: "Sarah Williams",
-    handle: "sarah_w",
-    avatar:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
-    bio: "Frontend Dev | Coffee Lover ☕",
-    stats: { posts: 28, followers: 890, following: 400 },
-    status: "offline",
-    isFriend: false,
-    isVerified: true,
-  },
-  {
-    id: "3",
-    name: "Mike Chen",
-    handle: "mike_c",
-    avatar:
-      "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=150&h=150&fit=crop",
-    bio: "Tech Lead | Open Source Contributor",
-    stats: { posts: 54, followers: 1200, following: 560 },
-    status: "away",
-    isFriend: false,
-    isVerified: false,
-  },
-];
-
-const MOCK_FEEDS: FeedPost[] = [
-  {
-    id: "1",
-    user: {
-      ...MOCK_USER,
-      id: "u1",
-      name: "Alex Johnson",
-      avatar: "A",
-      handle: "alex_j",
-    },
-    content: {
-      text: "Just finished the new design for the project! 🎨 What do you guys think? #design #uiux",
-      image:
-        "https://images.unsplash.com/photo-1561070791-2526d30994b5?auto=format&fit=crop&w=800&q=80",
-    },
-    stats: { likes: 24, comments: 2 },
-    liked: false,
-    commentsList: [
-      {
-        id: "c1",
-        user: { ...MOCK_USER, name: "Sarah", avatar: "S" },
-        text: "Looks amazing!",
-        time: "1h ago",
-      },
-      {
-        id: "c2",
-        user: { ...MOCK_USER, name: "Mike", avatar: "M" },
-        text: "Great work!",
-        time: "30m ago",
-      },
-    ],
-  },
-  {
-    id: "2",
-    user: {
-      ...MOCK_USER,
-      id: "u2",
-      name: "Sarah Williams",
-      avatar: "S",
-      handle: "sarah_w",
-    },
-    content: {
-      text: "Working on the backend integration. It's coming along nicely! 🚀",
-    },
-    stats: { likes: 12, comments: 0 },
-    liked: true,
-    commentsList: [],
-  },
-  {
-    id: "3",
-    user: {
-      ...MOCK_USER,
-      id: "u3",
-      name: "Mike Chen",
-      avatar: "M",
-      handle: "mike_c",
-    },
-    content: {
-      text: "Anyone up for a quick sync later today? Need to discuss the roadmap.",
-    },
-    stats: { likes: 8, comments: 1 },
-    liked: false,
-    commentsList: [
-      {
-        id: "c3",
-        user: { ...MOCK_USER, name: "Alex", avatar: "A" },
-        text: "I'm free at 2pm.",
-        time: "10m ago",
-      },
-    ],
-  },
-];
-
-const MOCK_STATUSES: Status[] = [
-  {
-    id: "s1",
-    user: MOCK_USERS[0],
-    isUnseen: true,
-    createdAt: new Date().toISOString(),
-    likes: [],
-    items: [
-      {
-        id: "si1",
-        type: "image",
-        url: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80",
-        duration: 5000,
-      },
-    ],
-  },
-  {
-    id: "s2",
-    user: MOCK_USERS[1],
-    isUnseen: false,
-    createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
-    likes: [],
-    items: [
-      {
-        id: "si2",
-        type: "image",
-        url: "https://images.unsplash.com/photo-1511765224389-37f0e77ee0eb?w=800&q=80",
-        duration: 5000,
-      },
-    ],
-  },
-];
-
-const MOCK_CHATS: Chat[] = [
-  {
-    id: "1",
-    user: {
-      ...MOCK_USER,
-      id: "u1",
-      name: "Alex Johnson",
-      avatar: "A",
-      status: "online",
-    },
-    messages: [
-      {
-        id: "m1",
-        text: "Hey! How's the project coming along?",
-        time: "10:30 AM",
-        isMe: false,
-      },
-      {
-        id: "m2",
-        text: "It's going great! Just finishing up the frontend.",
-        time: "10:32 AM",
-        isMe: true,
-        status: "read",
-        readTime: "10:35 AM",
-      },
-      {
-        id: "m3",
-        text: "That's awesome. Can't wait to see it.",
-        time: "10:33 AM",
-        isMe: false,
-      },
-    ],
-    lastMessage: {
-      text: "That's awesome. Can't wait to see it.",
-      time: "10:33 AM",
-      unread: 1,
-    },
-  },
-  {
-    id: "2",
-    user: {
-      ...MOCK_USER,
-      id: "u2",
-      name: "Sarah Williams",
-      avatar: "S",
-      status: "offline",
-    },
-    messages: [
-      {
-        id: "m1",
-        text: "I'll send the files over shortly.",
-        time: "1h ago",
-        isMe: false,
-      },
-    ],
-    lastMessage: { text: "I'll send the files over shortly.", time: "1h ago" },
-  },
-];
-
-const MOCK_FILES: FileItem[] = [
-  {
-    id: "1",
-    name: "Project Assets",
-    type: "folder",
-    items: 12,
-    date: "Oct 24",
-  },
-  { id: "2", name: "Documents", type: "folder", items: 8, date: "Oct 22" },
-  {
-    id: "3",
-    name: "Design_Mockup_v2.png",
-    type: "image",
-    size: "2.4 MB",
-    date: "Yesterday",
-  },
-  {
-    id: "4",
-    name: "Project_Proposal.pdf",
-    type: "document",
-    size: "1.8 MB",
-    date: "Oct 20",
-  },
-];
+// --- Mock Data Generators Removed ---
 
 // --- Context ---
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -397,23 +159,23 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User>({
-    id: "0",
-    name: "Zen Master",
-    handle: "zen_master",
-    avatar: "Z",
-    bio: "Digital explorer & code artisan. Building the future of messaging with Live-Verse. 🚀 #coding #react #nextjs",
+    id: "",
+    name: "Guest",
+    handle: "guest",
+    avatar: "G",
+    bio: "",
     stats: {
-      posts: 42,
-      followers: 1250,
-      following: 340,
+      posts: 0,
+      followers: 0,
+      following: 0,
     },
   });
-  const [users, setUsers] = useState<User[]>(MOCK_USERS);
-  const [feeds, setFeeds] = useState<FeedPost[]>(MOCK_FEEDS);
-  const [chats, setChats] = useState<Chat[]>(MOCK_CHATS);
-  const [files, setFiles] = useState<FileItem[]>(MOCK_FILES);
+  const [users, setUsers] = useState<User[]>([]);
+  const [feeds, setFeeds] = useState<FeedPost[]>([]);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [files, setFiles] = useState<FileItem[]>([]);
   const [contacts, setContacts] = useState<User[]>([]);
-  const [statuses, setStatuses] = useState<Status[]>(MOCK_STATUSES);
+  const [statuses, setStatuses] = useState<Status[]>([]);
   const [reels, setReels] = useState<any[]>([]);
   const [marketplaceItems, setMarketplaceItems] = useState<any[]>([]);
   const [settings, setSettings] = useState<{
@@ -623,7 +385,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     bio: otherParticipant.bio || "",
                     stats: { posts: 0, followers: 0, following: 0 },
                   }
-                : MOCK_USER,
+                : {
+                    id: "unknown",
+                    name: "Unknown User",
+                    avatar: "U",
+                    handle: "unknown",
+                    bio: "",
+                    stats: { posts: 0, followers: 0, following: 0 },
+                  },
               messages: c.messages.map((m: any) => ({
                 id: m.id,
                 text: m.text,
@@ -752,7 +521,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         localStorage.setItem("userData", JSON.stringify(user));
       } else {
         setIsAuthenticated(false);
-        setCurrentUser(MOCK_USER); // Reset to dummy if needed or null
+        setCurrentUser({
+          id: "",
+          name: "Guest",
+          handle: "guest",
+          avatar: "G",
+          bio: "",
+          stats: { posts: 0, followers: 0, following: 0 },
+        }); // Reset to dummy if needed or null
       }
     });
 
@@ -1385,6 +1161,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         markChatAsRead,
         uploadFile,
         verifyUser,
+        searchUsers,
         reels,
         marketplaceItems,
       }}
