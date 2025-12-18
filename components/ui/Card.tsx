@@ -1,8 +1,15 @@
 import React from "react";
 
-export const Card = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+}
+
+export const Card = ({ children, className = "", ...props }: CardProps) => {
   return (
-    <div className={`rounded-xl border border-border bg-secondary/50 p-4 ${className}`}>
+    <div
+      className={`rounded-xl border border-border bg-secondary/50 p-4 ${className}`}
+      {...props}
+    >
       {children}
     </div>
   );
