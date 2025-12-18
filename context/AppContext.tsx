@@ -1107,6 +1107,42 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const searchUsers = async (query: string): Promise<User[]> => {
+    if (!query.trim()) return [];
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .or(`name.ilike.%${query}%,handle.ilike.%${query}%`)
+      .limit(20);
+
+    if (error) {
+      console.error("Error searching users:", error);
+      return [];
+    }
+
+    const { data: myFollows } = await supabase
+      .from("follows")
+      .select("following_id")
+      .eq("follower_id", currentUser.id);
+
+    const followingIds = new Set(
+      myFollows?.map((f: any) => f.following_id) || []
+    );
+
+    return data.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      handle: p.handle,
+      avatar: p.avatar_url,
+      bio: p.bio,
+      stats: p.stats || { posts: 0, followers: 0, following: 0 },
+      isVerified: p.is_verified,
+      isFriend: followingIds.has(p.id),
+      status: "offline",
+    }));
+  };
+
   const verifyUser = async (userId: string, verifiedStatus: boolean) => {
     const { error } = await supabase
       .from("profiles")
