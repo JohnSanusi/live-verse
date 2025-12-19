@@ -1022,7 +1022,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     await supabase.auth.signOut();
+    localStorage.removeItem("userData");
     setIsAuthenticated(false);
+    setCurrentUser({
+      id: "",
+      name: "Guest",
+      handle: "guest",
+      avatar: "G",
+      bio: "",
+      stats: { posts: 0, followers: 0, following: 0 },
+    });
+    window.location.href = "/login";
   };
 
   const signInWithGoogle = async () => {
