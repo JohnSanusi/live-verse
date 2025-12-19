@@ -19,8 +19,12 @@ import { useToast } from "@/components/ui/Toast";
 
 export const Sidebar = () => {
   const pathname = usePathname();
-  const { logout } = useApp();
+  const { isAuthenticated, isLoading, logout } = useApp();
   const { confirm } = useToast();
+
+  if (isLoading) return null; // Or return a Skeleton sidebar
+  if (!isAuthenticated && pathname === "/login") return null;
+  if (!isAuthenticated && pathname === "/signup") return null;
 
   const navItems = [
     { href: "/", icon: Home, label: "Feed" },

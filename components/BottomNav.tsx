@@ -11,8 +11,15 @@ import {
   Search,
 } from "lucide-react";
 
+import { useApp } from "@/context/AppContext";
+
 export const BottomNav = () => {
   const pathname = usePathname();
+  const { isAuthenticated, isLoading } = useApp();
+
+  if (isLoading) return null; // Or return a Skeleton nav
+  if (!isAuthenticated && pathname === "/login") return null;
+  if (!isAuthenticated && pathname === "/signup") return null;
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },

@@ -110,6 +110,7 @@ interface AppContextType {
   contacts: User[];
   statuses: Status[];
   isAuthenticated: boolean;
+  isLoading: boolean;
   updateProfile: (data: Partial<User>) => void;
   toggleLike: (targetId: string, targetType?: "post" | "reel") => Promise<void>;
   addComment: (feedId: string, text: string) => Promise<void>;
@@ -156,6 +157,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
+  const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User>({
     id: "",
@@ -163,11 +165,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     handle: "guest",
     avatar: "G",
     bio: "",
-    stats: {
-      posts: 0,
-      followers: 0,
-      following: 0,
-    },
+    stats: { posts: 0, followers: 0, following: 0 },
   });
   const [users, setUsers] = useState<User[]>([]);
   const [feeds, setFeeds] = useState<FeedPost[]>([]);
@@ -482,77 +480,31 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Supabase Auth Listener
   useEffect(() => {
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      // Check active session immediately
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        if (mounted) setIsAuthenticated(true);
+        await fetchUserProfile(session.user);
+      } else {
+        if (mounted) setIsAuthenticated(false);
+      }
+      if (mounted) setIsLoading(false); // Auth check done
+    };
+
+    initializeAuth();
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setIsAuthenticated(true);
-        // Fetch full profile from DB
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", session.user.id)
-          .single();
-
-        let userProfile = profile;
-
-        if (!userProfile) {
-          // Profile doesn't exist (likely OAuth first login), create it
-          const name =
-            session.user.user_metadata?.full_name ||
-            session.user.email?.split("@")[0] ||
-            "User";
-          const handle =
-            session.user.user_metadata?.user_name ||
-            session.user.email?.split("@")[0] ||
-            "user";
-          const avatar =
-            session.user.user_metadata?.avatar_url ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(
-              name
-            )}&background=random&color=fff&size=512`;
-
-          const { data: newProfile, error: createError } = await supabase
-            .from("profiles")
-            .insert({
-              id: session.user.id,
-              name,
-              handle,
-              avatar_url: avatar,
-              bio: "Digital explorer",
-            })
-            .select()
-            .single();
-
-          if (!createError && newProfile) {
-            userProfile = newProfile;
-          }
-        }
-
-        const user: User = {
-          id: session.user.id,
-          name:
-            userProfile?.name ||
-            session.user.user_metadata?.full_name ||
-            session.user.email?.split("@")[0] ||
-            "User",
-          handle:
-            userProfile?.handle ||
-            session.user.user_metadata?.user_name ||
-            session.user.email?.split("@")[0] ||
-            "user",
-          avatar:
-            userProfile?.avatar_url ||
-            session.user.user_metadata?.avatar_url ||
-            session.user.email?.[0].toUpperCase() ||
-            "U",
-          bio: userProfile?.bio || "Digital explorer",
-          stats: userProfile?.stats || { posts: 0, followers: 0, following: 0 },
-          status: "online",
-          isVerified: userProfile?.is_verified || false,
-        };
-        setCurrentUser(user);
-        localStorage.setItem("userData", JSON.stringify(user));
+        await fetchUserProfile(session.user);
       } else {
         setIsAuthenticated(false);
         setCurrentUser({
@@ -562,12 +514,85 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           avatar: "G",
           bio: "",
           stats: { posts: 0, followers: 0, following: 0 },
-        }); // Reset to dummy if needed or null
+        });
       }
+      setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
+
+  const fetchUserProfile = async (authUser: any) => {
+    // Fetch full profile from DB
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", authUser.id)
+      .single();
+
+    let userProfile = profile;
+
+    if (!userProfile) {
+      // Profile doesn't exist (likely OAuth first login), create it
+      const name =
+        authUser.user_metadata?.full_name ||
+        authUser.email?.split("@")[0] ||
+        "User";
+      const handle =
+        authUser.user_metadata?.user_name ||
+        authUser.email?.split("@")[0] ||
+        "user";
+      const avatar =
+        authUser.user_metadata?.avatar_url ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          name
+        )}&background=random&color=fff&size=512`;
+
+      const { data: newProfile, error: createError } = await supabase
+        .from("profiles")
+        .insert({
+          id: authUser.id,
+          name,
+          handle,
+          avatar_url: avatar,
+          bio: "Digital explorer",
+        })
+        .select()
+        .single();
+
+      if (!createError && newProfile) {
+        userProfile = newProfile;
+      }
+    }
+
+    const user: User = {
+      id: authUser.id,
+      name:
+        userProfile?.name ||
+        authUser.user_metadata?.full_name ||
+        authUser.email?.split("@")[0] ||
+        "User",
+      handle:
+        userProfile?.handle ||
+        authUser.user_metadata?.user_name ||
+        authUser.email?.split("@")[0] ||
+        "user",
+      avatar:
+        userProfile?.avatar_url ||
+        authUser.user_metadata?.avatar_url ||
+        authUser.email?.[0].toUpperCase() ||
+        "U",
+      bio: userProfile?.bio || "Digital explorer",
+      stats: userProfile?.stats || { posts: 0, followers: 0, following: 0 },
+      status: "online",
+      isVerified: userProfile?.is_verified || false,
+    };
+    setCurrentUser(user);
+    // Removed localStorage.setItem("userData")
+  };
 
   const updateProfile = (data: Partial<User>) => {
     const updated = { ...currentUser, ...data };
@@ -1022,7 +1047,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     await supabase.auth.signOut();
-    localStorage.clear();
+    // localStorage.clear(); // No longer needed
     window.location.href = "/login";
   };
 
@@ -1221,6 +1246,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         contacts,
         statuses,
         isAuthenticated,
+        isLoading,
         updateProfile,
         toggleLike,
         addComment,
