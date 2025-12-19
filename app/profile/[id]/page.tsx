@@ -92,9 +92,26 @@ export default function UserProfilePage() {
     );
   }
 
+  const handleFollowToggle = async () => {
+    await toggleFollow(userId);
+    // Re-check follow status
+    const { data: follow } = await supabase
+      .from("follows")
+      .select("*")
+      .eq("follower_id", currentUser.id)
+      .eq("following_id", userId)
+      .single();
+
+    setUser((prev) => (prev ? { ...prev, isFriend: !!follow } : null));
+  };
+
   return (
     <div className="pb-20 min-h-screen bg-background">
-      <ProfileHeader user={user} isCurrentUser={currentUser.id === user.id} />
+      <ProfileHeader
+        user={user}
+        isCurrentUser={currentUser.id === user.id}
+        onFollowToggle={handleFollowToggle}
+      />
 
       <div className="px-4">
         {/* Tabs */}

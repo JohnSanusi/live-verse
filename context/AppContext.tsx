@@ -558,7 +558,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           name,
           handle,
           avatar_url: avatar,
-          bio: "Digital explorer",
+          bio: "Just exploring the Void",
         })
         .select()
         .single();
@@ -585,7 +585,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         authUser.user_metadata?.avatar_url ||
         authUser.email?.[0].toUpperCase() ||
         "U",
-      bio: userProfile?.bio || "Digital explorer",
+      bio: userProfile?.bio || "Just exploring the Void",
       stats: userProfile?.stats || { posts: 0, followers: 0, following: 0 },
       status: "online",
       isVerified: userProfile?.is_verified || false,
@@ -1034,7 +1034,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(
           name
         )}&background=random&color=fff&size=512`,
-        bio: "Digital explorer",
+        bio: "Just exploring the Void",
       });
 
       if (profileError) {

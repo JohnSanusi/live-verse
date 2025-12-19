@@ -9,14 +9,16 @@ interface ProfileHeaderProps {
   user: User;
   isCurrentUser?: boolean;
   autoEdit?: boolean;
+  onFollowToggle?: () => void | Promise<void>;
 }
 
 export const ProfileHeader = ({
   user,
   isCurrentUser = true,
   autoEdit = false,
+  onFollowToggle,
 }: ProfileHeaderProps) => {
-  const { updateProfile, toggleFollow } = useApp();
+  const { updateProfile, toggleFollow, uploadFile } = useApp();
   const [isEditing, setIsEditing] = useState(autoEdit);
   const [editName, setEditName] = useState(user.name);
   const [editBio, setEditBio] = useState(user.bio);
@@ -34,15 +36,20 @@ export const ProfileHeader = ({
     setIsEditing(false);
   };
 
-  const handleMediaUpload = (
+  const handleMediaUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     type: "avatar" | "cover"
   ) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      if (type === "avatar") setEditAvatar(url);
-      else setEditCover(url);
+      // Upload to Supabase Storage
+      const bucket = type === "avatar" ? "avatars" : "avatars"; // You can create separate buckets if needed
+      const uploadedUrl = await uploadFile(bucket, file);
+
+      if (uploadedUrl) {
+        if (type === "avatar") setEditAvatar(uploadedUrl);
+        else setEditCover(uploadedUrl);
+      }
     }
   };
 
@@ -163,9 +170,11 @@ export const ProfileHeader = ({
                     ? "border-primary/50 text-primary"
                     : "bg-primary text-primary-foreground"
                 }`}
-                onClick={() => toggleFollow(user.id)}
+                onClick={() =>
+                  onFollowToggle ? onFollowToggle() : toggleFollow(user.id)
+                }
               >
-                {user.isFriend ? "Friends" : "Add Friend"}
+                {user.isFriend ? "Following" : "Follow"}
               </Button>
             )}
           </div>
