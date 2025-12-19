@@ -1022,16 +1022,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem("userData");
-    setIsAuthenticated(false);
-    setCurrentUser({
-      id: "",
-      name: "Guest",
-      handle: "guest",
-      avatar: "G",
-      bio: "",
-      stats: { posts: 0, followers: 0, following: 0 },
-    });
+    localStorage.clear();
     window.location.href = "/login";
   };
 
@@ -1168,11 +1159,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
-      .or(`name.ilike.%${query}%,handle.ilike.%${query}%`)
+      .or(`name.ilike.%${query.trim()}%,handle.ilike.%${query.trim()}%`)
       .limit(20);
 
     if (error) {
-      console.error("Error searching users:", error);
+      console.error("Error searching users:", error.message);
+      // NOTE: If this returns "new row violates row-level security policy" or returns empty,
+      // ensuring PROFILES table has generic SELECT policy is key:
+      // CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
       return [];
     }
 
