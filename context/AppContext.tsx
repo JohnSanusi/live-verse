@@ -495,27 +495,62 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           .eq("id", session.user.id)
           .single();
 
+        let userProfile = profile;
+
+        if (!userProfile) {
+          // Profile doesn't exist (likely OAuth first login), create it
+          const name =
+            session.user.user_metadata?.full_name ||
+            session.user.email?.split("@")[0] ||
+            "User";
+          const handle =
+            session.user.user_metadata?.user_name ||
+            session.user.email?.split("@")[0] ||
+            "user";
+          const avatar =
+            session.user.user_metadata?.avatar_url ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(
+              name
+            )}&background=random&color=fff&size=512`;
+
+          const { data: newProfile, error: createError } = await supabase
+            .from("profiles")
+            .insert({
+              id: session.user.id,
+              name,
+              handle,
+              avatar_url: avatar,
+              bio: "Digital explorer",
+            })
+            .select()
+            .single();
+
+          if (!createError && newProfile) {
+            userProfile = newProfile;
+          }
+        }
+
         const user: User = {
           id: session.user.id,
           name:
-            profile?.name ||
+            userProfile?.name ||
             session.user.user_metadata?.full_name ||
             session.user.email?.split("@")[0] ||
             "User",
           handle:
-            profile?.handle ||
+            userProfile?.handle ||
             session.user.user_metadata?.user_name ||
             session.user.email?.split("@")[0] ||
             "user",
           avatar:
-            profile?.avatar_url ||
+            userProfile?.avatar_url ||
             session.user.user_metadata?.avatar_url ||
             session.user.email?.[0].toUpperCase() ||
             "U",
-          bio: profile?.bio || "Digital explorer",
-          stats: profile?.stats || { posts: 0, followers: 0, following: 0 },
+          bio: userProfile?.bio || "Digital explorer",
+          stats: userProfile?.stats || { posts: 0, followers: 0, following: 0 },
           status: "online",
-          isVerified: profile?.is_verified || false,
+          isVerified: userProfile?.is_verified || false,
         };
         setCurrentUser(user);
         localStorage.setItem("userData", JSON.stringify(user));
