@@ -93,16 +93,22 @@ export default function UserProfilePage() {
   }
 
   const handleFollowToggle = async () => {
-    await toggleFollow(userId);
-    // Re-check follow status
-    const { data: follow } = await supabase
-      .from("follows")
-      .select("*")
-      .eq("follower_id", currentUser.id)
-      .eq("following_id", userId)
-      .single();
+    console.log("handleFollowToggle called");
+    try {
+      await toggleFollow(userId);
+      // Re-check follow status
+      const { data: follow, error } = await supabase
+        .from("follows")
+        .select("*")
+        .eq("follower_id", currentUser.id)
+        .eq("following_id", userId)
+        .single();
 
-    setUser((prev) => (prev ? { ...prev, isFriend: !!follow } : null));
+      console.log("Follow status after toggle:", follow, "Error:", error);
+      setUser((prev) => (prev ? { ...prev, isFriend: !!follow } : null));
+    } catch (error) {
+      console.error("Error in handleFollowToggle:", error);
+    }
   };
 
   return (

@@ -161,9 +161,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User>({
     id: "",
-    name: "Guest",
-    handle: "guest",
-    avatar: "G",
+    name: "",
+    handle: "",
+    avatar: "",
     bio: "",
     stats: { posts: 0, followers: 0, following: 0 },
   });
@@ -509,9 +509,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setIsAuthenticated(false);
         setCurrentUser({
           id: "",
-          name: "Guest",
-          handle: "guest",
-          avatar: "G",
+          name: "",
+          handle: "",
+          avatar: "",
           bio: "",
           stats: { posts: 0, followers: 0, following: 0 },
         });
@@ -960,25 +960,39 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const toggleFollow = useCallback(
     async (userId: string) => {
+      console.log("toggleFollow called for userId:", userId);
+      console.log("Current user ID:", currentUser?.id);
+
+      if (!currentUser?.id) {
+        console.error("Cannot follow: No authenticated user");
+        return;
+      }
+
       // Check if following
-      const { data: existingFollow } = await supabase
+      const { data: existingFollow, error: checkError } = await supabase
         .from("follows")
         .select("*")
         .eq("follower_id", currentUser.id)
         .eq("following_id", userId)
         .single();
 
+      console.log("Existing follow:", existingFollow, "Error:", checkError);
+
       if (existingFollow) {
-        await supabase
+        const { error: deleteError } = await supabase
           .from("follows")
           .delete()
           .eq("follower_id", currentUser.id)
           .eq("following_id", userId);
+
+        console.log("Unfollow result - Error:", deleteError);
       } else {
-        await supabase.from("follows").insert({
+        const { error: insertError } = await supabase.from("follows").insert({
           follower_id: currentUser.id,
           following_id: userId,
         });
+
+        console.log("Follow result - Error:", insertError);
       }
 
       setUsers((prev) =>
