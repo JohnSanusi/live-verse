@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
 export default function UserProfilePage() {
   const params = useParams();
   const userId = params.id as string;
-  const { currentUser, toggleLike, addComment } = useApp();
+  const { currentUser, toggleLike, addComment, toggleFollow } = useApp();
 
   const [user, setUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);
