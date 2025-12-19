@@ -16,7 +16,7 @@ export const ProfileHeader = ({
   isCurrentUser = true,
   autoEdit = false,
 }: ProfileHeaderProps) => {
-  const { updateProfile, toggleFriend } = useApp();
+  const { updateProfile, toggleFollow } = useApp();
   const [isEditing, setIsEditing] = useState(autoEdit);
   const [editName, setEditName] = useState(user.name);
   const [editBio, setEditBio] = useState(user.bio);
@@ -163,7 +163,7 @@ export const ProfileHeader = ({
                     ? "border-primary/50 text-primary"
                     : "bg-primary text-primary-foreground"
                 }`}
-                onClick={() => toggleFriend(user.id)}
+                onClick={() => toggleFollow(user.id)}
               >
                 {user.isFriend ? "Friends" : "Add Friend"}
               </Button>

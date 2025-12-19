@@ -117,7 +117,7 @@ interface AppContextType {
   verifyUser: (userId: string, status: boolean) => Promise<void>;
   sendMessage: (chatId: string, text: string) => void;
   addFile: () => void;
-  toggleFriend: (userId: string) => Promise<void>;
+  toggleFollow: (userId: string) => Promise<void>;
   addContact: (user: User) => void;
   markStatusAsSeen: (statusId: string) => void;
   addStatus: (text: string, media?: File | string) => Promise<void>;
@@ -144,7 +144,6 @@ interface AppContextType {
   updateSettings: (settings: Partial<AppContextType["settings"]>) => void;
   markChatAsRead: (chatId: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
   uploadFile: (bucket: string, file: File) => Promise<string | null>;
   searchUsers: (query: string) => Promise<User[]>;
   reels: any[];
@@ -934,7 +933,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  const toggleFriend = useCallback(
+  const toggleFollow = useCallback(
     async (userId: string) => {
       // Check if following
       const { data: existingFollow } = await supabase
@@ -1029,15 +1028,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      },
-    });
-  };
-
-  const signInWithApple = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "apple",
       options: {
         redirectTo: `${window.location.origin}/`,
       },
@@ -1231,7 +1221,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         toggleCommentLike,
         sendMessage,
         addFile,
-        toggleFriend,
+        toggleFollow,
         addContact,
         markStatusAsSeen,
         addStatus,
@@ -1248,7 +1238,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         settings,
         updateSettings,
         signInWithGoogle,
-        signInWithApple,
         markChatAsRead,
         uploadFile,
         verifyUser,

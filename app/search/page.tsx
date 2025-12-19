@@ -13,7 +13,7 @@ export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { searchUsers, toggleFriend, currentUser } = useApp();
+  const { searchUsers, toggleFollow, currentUser } = useApp();
 
   useEffect(() => {
     const delayDebounce = setTimeout(async () => {
@@ -91,7 +91,7 @@ export default function SearchPage() {
               <Button
                 size="sm"
                 variant={user.isFriend ? "secondary" : "primary"}
-                onClick={() => toggleFriend(user.id)}
+                onClick={() => toggleFollow(user.id)}
                 className={`h-8 px-4 text-xs font-bold rounded-full ${
                   user.isFriend ? "bg-secondary text-foreground" : ""
                 }`}

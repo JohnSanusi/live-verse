@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { ProfileHeader } from "@/components/ProfileHeader";
 import { FeedItem } from "@/components/FeedItem";
-import { Grid, List, Video, Play } from "lucide-react";
+import { Grid, List } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useApp } from "@/context/AppContext";
 
