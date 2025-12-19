@@ -8,65 +8,9 @@ import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/ui/Toast";
+import { EliteBadge } from "@/components/EliteBadge";
 
 const CATEGORIES = ["All", "Electronics", "Fashion", "Home", "Sports", "Books"];
-
-const MOCK_PRODUCTS = [
-  {
-    id: 1,
-    name: "Wireless Headphones",
-    price: "$89.99",
-    image:
-      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop",
-    category: "Electronics",
-    seller: "TechStore",
-  },
-  {
-    id: 2,
-    name: "Smart Watch",
-    price: "$199.99",
-    image:
-      "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop",
-    category: "Electronics",
-    seller: "GadgetHub",
-  },
-  {
-    id: 3,
-    name: "Designer Backpack",
-    price: "$59.99",
-    image:
-      "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=400&fit=crop",
-    category: "Fashion",
-    seller: "StyleCo",
-  },
-  {
-    id: 4,
-    name: "Coffee Maker",
-    price: "$79.99",
-    image:
-      "https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?w=400&h=400&fit=crop",
-    category: "Home",
-    seller: "HomeEssentials",
-  },
-  {
-    id: 5,
-    name: "Running Shoes",
-    price: "$129.99",
-    image:
-      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=400&fit=crop",
-    category: "Sports",
-    seller: "SportGear",
-  },
-  {
-    id: 6,
-    name: "Bestseller Novel",
-    price: "$14.99",
-    image:
-      "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=400&fit=crop",
-    category: "Books",
-    seller: "BookWorld",
-  },
-];
 
 export default function MarketplacePage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -76,10 +20,12 @@ export default function MarketplacePage() {
   const [itemPrice, setItemPrice] = useState("");
   const [itemImage, setItemImage] = useState("");
   const [itemCategory, setItemCategory] = useState("Electronics");
-  const { createMarketplaceItem } = useApp();
+  const { createMarketplaceItem, marketplaceItems } = useApp();
   const { showToast, confirm } = useToast();
 
-  const filteredProducts = MOCK_PRODUCTS.filter((product) => {
+  const products = marketplaceItems;
+
+  const filteredProducts = products.filter((product: any) => {
     const matchesCategory =
       selectedCategory === "All" || product.category === selectedCategory;
     const matchesSearch = product.name
@@ -88,12 +34,20 @@ export default function MarketplacePage() {
     return matchesCategory && matchesSearch;
   });
 
+  const [itemFile, setItemFile] = useState<File | null>(null);
+
   const handleCreateItem = () => {
-    if (itemName.trim() && itemPrice.trim() && itemImage.trim()) {
-      createMarketplaceItem(itemName, itemPrice, itemImage, itemCategory);
+    if (itemName.trim() && itemPrice.trim() && (itemFile || itemImage)) {
+      createMarketplaceItem(
+        itemName,
+        itemPrice,
+        itemFile || itemImage,
+        itemCategory
+      );
       setItemName("");
       setItemPrice("");
       setItemImage("");
+      setItemFile(null);
       setItemCategory("Electronics");
       setShowCreateItem(false);
       showToast("Item listed successfully!", "success");
@@ -169,12 +123,30 @@ export default function MarketplacePage() {
                 onChange={(e) => setItemPrice(e.target.value)}
               />
 
-              <Input
-                placeholder="Image URL"
-                className="bg-secondary/50 border-border"
-                value={itemImage}
-                onChange={(e) => setItemImage(e.target.value)}
-              />
+              <div className="flex gap-2">
+                <Input
+                  type="file"
+                  id="market-upload"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setItemFile(file);
+                      setItemImage(URL.createObjectURL(file));
+                    }
+                  }}
+                />
+                <Button
+                  variant="secondary"
+                  className="w-full border-dashed border-2 bg-secondary/20"
+                  onClick={() =>
+                    document.getElementById("market-upload")?.click()
+                  }
+                >
+                  {itemFile ? itemFile.name : "Upload Image"}
+                </Button>
+              </div>
 
               <select
                 className="w-full bg-secondary/50 border border-border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-primary"
@@ -241,7 +213,7 @@ export default function MarketplacePage() {
             >
               <div className="aspect-square bg-muted overflow-hidden">
                 <img
-                  src={product.image}
+                  src={product.image_url || product.image}
                   alt={product.name}
                   className="w-full h-full object-cover"
                 />
@@ -250,12 +222,18 @@ export default function MarketplacePage() {
                 <h3 className="font-semibold text-sm mb-1 line-clamp-1">
                   {product.name}
                 </h3>
-                <p className="text-xs text-muted-foreground mb-2">
-                  {product.seller}
-                </p>
+                <div className="flex items-center gap-1">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {product.seller ||
+                      (product.profiles?.name ?? "Unknown Seller")}
+                  </p>
+                  {product.profiles?.isVerified && <EliteBadge size={10} />}
+                </div>
                 <div className="space-y-2">
                   <span className="text-primary font-bold block">
-                    {product.price}
+                    {typeof product.price === "number"
+                      ? `$${product.price.toFixed(2)}`
+                      : product.price}
                   </span>
                   <Button
                     size="sm"

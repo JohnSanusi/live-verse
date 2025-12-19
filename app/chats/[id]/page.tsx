@@ -23,7 +23,7 @@ export default function ChatDetailPage() {
   const params = useParams();
   const router = useRouter();
   const chatId = params.id as string;
-  const { chats, sendMessage } = useApp();
+  const { chats, sendMessage, markChatAsRead } = useApp();
   const { showToast, confirm } = useToast();
   const [text, setText] = useState("");
   const [showOptions, setShowOptions] = useState(false);
@@ -46,8 +46,9 @@ export default function ChatDetailPage() {
       setIsTyping(true);
       setTimeout(() => setIsTyping(false), 3000);
     }, 1000);
+    markChatAsRead(chatId);
     return () => clearTimeout(timeout);
-  }, [chatId]);
+  }, [chatId, markChatAsRead]);
 
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault();

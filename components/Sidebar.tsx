@@ -10,6 +10,7 @@ import {
   Settings,
   LogOut,
   Video,
+  Search,
   ShoppingBag,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -23,6 +24,7 @@ export const Sidebar = () => {
 
   const navItems = [
     { href: "/", icon: Home, label: "Feed" },
+    { href: "/search", icon: Search, label: "Search" },
     { href: "/chats", icon: MessageCircle, label: "Chats" },
     { href: "/reels", icon: Video, label: "Reels" },
     { href: "/marketplace", icon: ShoppingBag, label: "Marketplace" },
