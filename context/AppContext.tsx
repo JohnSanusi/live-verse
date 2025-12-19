@@ -1170,6 +1170,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return [];
     }
 
+    console.log("Search results:", data); // Debug log to see what DB returns
+
     const { data: myFollows } = await supabase
       .from("follows")
       .select("following_id")
