@@ -16,27 +16,51 @@ import {
 import { Button } from "@/components/ui/Button";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/ui/Toast";
-import { EliteBadge } from "@/components/EliteBadge";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+
+const MOCK_REELS = [
+  {
+    id: 1,
+    user: { id: "1", name: "Alex Johnson", avatar: "A", handle: "@alex_j" },
+    video:
+      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    caption: "Check out this amazing view! 🌅 #nature #sunset",
+    stats: { likes: 1240, comments: 89, shares: 45 },
+  },
+  {
+    id: 2,
+    user: { id: "2", name: "Sarah Williams", avatar: "S", handle: "@sarah_w" },
+    video:
+      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+    caption: "New design process walkthrough 🎨",
+    stats: { likes: 890, comments: 56, shares: 23 },
+  },
+  {
+    id: 3,
+    user: { id: "3", name: "Mike Chen", avatar: "M", handle: "@mike_c" },
+    video:
+      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    caption: "Coding tips and tricks! 💻 #webdev",
+    stats: { likes: 2100, comments: 145, shares: 78 },
+  },
+];
 
 export default function ReelsPage() {
   const [showCreateReel, setShowCreateReel] = useState(false);
   const [reelCaption, setReelCaption] = useState("");
   const [reelVideo, setReelVideo] = useState("");
-  const [likedReels, setLikedReels] = useState<string[]>([]);
-  const [showHeart, setShowHeart] = useState<string | null>(null);
-  const [reelFile, setReelFile] = useState<File | null>(null);
+  const [likedReels, setLikedReels] = useState<number[]>([]);
+  const [showHeart, setShowHeart] = useState<number | null>(null);
 
-  const { createReel, reels, toggleLike } = useApp();
+  const { createReel } = useApp();
   const { showToast } = useToast();
 
   const handleCreateReel = () => {
-    if (reelCaption.trim() && (reelFile || reelVideo)) {
-      createReel(reelCaption, reelFile || reelVideo);
+    if (reelCaption.trim() && reelVideo.trim()) {
+      createReel(reelCaption, reelVideo);
       setReelCaption("");
       setReelVideo("");
-      setReelFile(null);
       setShowCreateReel(false);
       showToast("Reel created successfully!", "success");
     }
@@ -46,20 +70,18 @@ export default function ReelsPage() {
     showToast(`${action}!`, "success");
   };
 
-  const handleDoubleTap = (id: string) => {
+  const handleDoubleTap = (id: number) => {
     if (!likedReels.includes(id)) {
       setLikedReels((prev) => [...prev, id]);
-      toggleLike(id, "reel");
     }
     setShowHeart(id);
     setTimeout(() => setShowHeart(null), 1000);
   };
 
-  const toggleReelLike = (id: string) => {
+  const toggleLike = (id: number) => {
     setLikedReels((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
-    toggleLike(id, "reel");
   };
 
   return (
@@ -120,7 +142,6 @@ export default function ReelsPage() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      setReelFile(file);
                       const url = URL.createObjectURL(file);
                       setReelVideo(url);
                     }
@@ -178,7 +199,7 @@ export default function ReelsPage() {
       </AnimatePresence>
 
       <div className="h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide">
-        {reels.map((reel: any) => (
+        {MOCK_REELS.map((reel) => (
           <div
             key={reel.id}
             className="h-full w-full snap-start snap-always relative flex items-center justify-center bg-black group/reel"
@@ -260,12 +281,9 @@ export default function ReelsPage() {
                             {reel.user.avatar}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <p className="font-bold text-white text-sm tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                            {reel.user.handle}
-                          </p>
-                          {reel.user.isVerified && <EliteBadge size={12} />}
-                        </div>
+                        <p className="font-bold text-white text-sm tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                          {reel.user.handle}
+                        </p>
                       </Link>
                       <Button
                         variant="primary"
@@ -306,24 +324,27 @@ export default function ReelsPage() {
                     <div className="flex flex-col items-center gap-1">
                       <button
                         className={`h-10 w-10 rounded-full flex items-center justify-center transition-all active:scale-75 ${
-                          reel.liked ? "text-red-500" : "text-white"
+                          likedReels.includes(reel.id)
+                            ? "text-red-500"
+                            : "text-white"
                         }`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          toggleReelLike(reel.id);
+                          toggleLike(reel.id);
                         }}
                       >
                         <Heart
                           size={26}
                           className={
-                            reel.liked
+                            likedReels.includes(reel.id)
                               ? "fill-current"
                               : "drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
                           }
                         />
                       </button>
                       <span className="text-[11px] font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-                        {reel.stats.likes}
+                        {reel.stats.likes +
+                          (likedReels.includes(reel.id) ? 1 : 0)}
                       </span>
                     </div>
 
