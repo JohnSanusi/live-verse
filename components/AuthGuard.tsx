@@ -5,11 +5,14 @@ import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useApp();
+  const { isAuthenticated, isLoading } = useApp();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
+    // Don't redirect while loading
+    if (isLoading) return;
+
     // Allow access to auth pages
     if (pathname === "/login" || pathname === "/signup") {
       if (isAuthenticated) {
@@ -22,9 +25,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated) {
       router.push("/login");
     }
-  }, [isAuthenticated, pathname, router]);
+  }, [isAuthenticated, isLoading, pathname, router]);
 
-  // Show loader while checking auth for protected routes
+  // Show nothing while loading or redirecting
+  if (isLoading) {
+    return null;
+  }
+
+  // Show nothing while redirecting unauthenticated users
   if (!isAuthenticated && pathname !== "/login" && pathname !== "/signup") {
     return null;
   }

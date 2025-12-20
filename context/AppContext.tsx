@@ -568,6 +568,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
+    // Calculate real stats
+    const { count: postsCount } = await supabase
+      .from("posts")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", authUser.id);
+
+    const { count: followersCount } = await supabase
+      .from("follows")
+      .select("*", { count: "exact", head: true })
+      .eq("following_id", authUser.id);
+
+    const { count: followingCount } = await supabase
+      .from("follows")
+      .select("*", { count: "exact", head: true })
+      .eq("follower_id", authUser.id);
+
     const user: User = {
       id: authUser.id,
       name:
@@ -586,7 +602,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         authUser.email?.[0].toUpperCase() ||
         "U",
       bio: userProfile?.bio || "Just exploring the Void",
-      stats: userProfile?.stats || { posts: 0, followers: 0, following: 0 },
+      stats: {
+        posts: postsCount || 0,
+        followers: followersCount || 0,
+        following: followingCount || 0,
+      },
       status: "online",
       isVerified: userProfile?.is_verified || false,
     };
