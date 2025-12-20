@@ -169,6 +169,7 @@ interface AppContextType {
   followers: User[];
   following: User[];
   fetchFollowLists: () => Promise<void>;
+  fetchChats: () => Promise<void>;
 }
 
 // --- Mock Data Generators Removed ---
@@ -247,6 +248,76 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem("currentUser");
     }
   }, [currentUser]);
+
+  const fetchChats = useCallback(async () => {
+    if (!currentUser.id) return;
+
+    try {
+      const { data: chatsData } = await supabase
+        .from("chats")
+        .select(
+          `
+          *,
+          chat_participants (
+            profiles:user_id (*)
+          ),
+          messages (*)
+        `
+        )
+        .order("updated_at", { ascending: false });
+
+      if (chatsData) {
+        setChats(
+          chatsData.map((c: any) => {
+            const otherParticipant = c.chat_participants.find(
+              (p: any) => p.profiles.id !== currentUser.id
+            )?.profiles;
+            return {
+              id: c.id,
+              user: otherParticipant
+                ? {
+                    id: otherParticipant.id,
+                    name: otherParticipant.name,
+                    avatar: otherParticipant.avatar_url,
+                    handle: otherParticipant.handle,
+                    status: "online",
+                    isVerified: otherParticipant.is_verified,
+                    bio: otherParticipant.bio || "",
+                    stats: { posts: 0, followers: 0, following: 0 },
+                  }
+                : {
+                    id: "unknown",
+                    name: "Unknown User",
+                    avatar: "U",
+                    handle: "unknown",
+                    bio: "",
+                    stats: { posts: 0, followers: 0, following: 0 },
+                  },
+              messages: (c.messages || []).map((m: any) => ({
+                id: m.id,
+                text: m.text,
+                time: new Date(m.created_at).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+                isMe: m.sender_id === currentUser.id,
+                status: "read",
+              })),
+              lastMessage: {
+                text:
+                  c.messages?.[c.messages.length - 1]?.text || "No messages",
+                time: "Just now",
+              },
+              isGroup: c.is_group,
+              groupName: c.name,
+            };
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching chats:", error);
+    }
+  }, [currentUser.id]);
 
   // Fetch Feeds, Reels, Marketplace, and Chats from Supabase
   useEffect(() => {
@@ -388,73 +459,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setStatuses(activeStatuses);
       }
 
-      // Fetch Chats
-      const { data: chatsData } = await supabase
-        .from("chats")
-        .select(
-          `
-          *,
-          chat_participants (
-            profiles:user_id (*)
-          ),
-          messages (*)
-        `
-        )
-        .order("updated_at", { ascending: false });
-
-      if (chatsData) {
-        setChats(
-          chatsData.map((c: any) => {
-            const otherParticipant = c.chat_participants.find(
-              (p: any) => p.profiles.id !== currentUser.id
-            )?.profiles;
-            return {
-              id: c.id,
-              user: otherParticipant
-                ? {
-                    id: otherParticipant.id,
-                    name: otherParticipant.name,
-                    avatar: otherParticipant.avatar_url,
-                    handle: otherParticipant.handle,
-                    status: "online",
-                    isVerified: otherParticipant.is_verified,
-                    bio: otherParticipant.bio || "",
-                    stats: { posts: 0, followers: 0, following: 0 },
-                  }
-                : {
-                    id: "unknown",
-                    name: "Unknown User",
-                    avatar: "U",
-                    handle: "unknown",
-                    bio: "",
-                    stats: { posts: 0, followers: 0, following: 0 },
-                  },
-              messages: c.messages.map((m: any) => ({
-                id: m.id,
-                text: m.text,
-                time: new Date(m.created_at).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }),
-                isMe: m.sender_id === currentUser.id,
-                status: "read",
-              })),
-              lastMessage: {
-                text: c.messages[c.messages.length - 1]?.text || "No messages",
-                time: "Just now",
-              },
-              isGroup: c.is_group,
-              groupName: c.name,
-            };
-          })
-        );
-      }
+      // Fetch Chats via standalone function
+      await fetchChats();
     };
 
     if (isAuthenticated) {
       fetchData();
     }
-  }, [isAuthenticated, currentUser.id]);
+  }, [isAuthenticated, currentUser.id, fetchChats]);
 
   const toggleLike = useCallback(
     async (targetId: string, targetType: "post" | "reel" = "post") => {
@@ -1637,6 +1649,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         login,
         signup,
         logout,
+        fetchChats,
+        fetchFollowLists,
+        fetchNotifications,
         createPost,
         createReel,
         createMarketplaceItem,
@@ -1651,12 +1666,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         marketplaceItems,
         notifications,
         unreadNotificationsCount,
-        fetchNotifications,
         markNotificationAsRead,
         createChat,
         followers,
         following,
-        fetchFollowLists,
       }}
     >
       {children}
