@@ -63,6 +63,7 @@ export default function UserProfilePage() {
           handle: profile.handle,
           avatar: profile.avatar_url,
           bio: profile.bio || "",
+          coverPhoto: profile.cover_url || "",
           isVerified: profile.is_verified,
           isPrivate: profile.is_private,
           status: "offline",

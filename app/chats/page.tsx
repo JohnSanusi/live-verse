@@ -21,6 +21,7 @@ export default function ChatsPage() {
     createChat,
     toggleArchiveChat,
     createGroupChat,
+    fetchFollowLists,
   } = useApp();
   const { showToast } = useToast();
   const router = useRouter();
@@ -40,6 +41,12 @@ export default function ChatsPage() {
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  useEffect(() => {
+    if (showContacts) {
+      fetchFollowLists();
+    }
+  }, [showContacts, fetchFollowLists]);
 
   const handleStartChat = async (userId: string) => {
     const chatId = await createChat(userId);

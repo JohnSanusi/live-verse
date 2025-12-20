@@ -26,8 +26,17 @@ export const ProfileHeader = ({
   const [editAvatar, setEditAvatar] = useState(user.avatar);
   const [editCover, setEditCover] = useState(user.coverPhoto);
 
-  const handleSave = () => {
-    updateProfile({
+  React.useEffect(() => {
+    if (!isEditing) {
+      setEditName(user.name);
+      setEditBio(user.bio);
+      setEditAvatar(user.avatar);
+      setEditCover(user.coverPhoto);
+    }
+  }, [user, isEditing]);
+
+  const handleSave = async () => {
+    await updateProfile({
       name: editName,
       bio: editBio,
       avatar: editAvatar,
@@ -43,7 +52,7 @@ export const ProfileHeader = ({
     const file = e.target.files?.[0];
     if (file) {
       // Upload to Supabase Storage
-      const bucket = type === "avatar" ? "avatars" : "avatars"; // You can create separate buckets if needed
+      const bucket = "avatars"; // Use a single bucket for profile media for now
       const uploadedUrl = await uploadFile(bucket, file);
 
       if (uploadedUrl) {

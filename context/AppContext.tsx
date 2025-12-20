@@ -123,7 +123,7 @@ interface AppContextType {
   statuses: Status[];
   isAuthenticated: boolean;
   isLoading: boolean;
-  updateProfile: (data: Partial<User>) => void;
+  updateProfile: (data: Partial<User>) => Promise<void>;
   toggleLike: (targetId: string, targetType?: "post" | "reel") => Promise<void>;
   addComment: (feedId: string, text: string) => Promise<void>;
   toggleCommentLike: (feedId: string, commentId: string) => void;
@@ -720,7 +720,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           userProfile?.avatar_url ||
           authUser.user_metadata?.avatar_url ||
           (authUser.email ? authUser.email[0].toUpperCase() : "U"),
-        bio: userProfile?.bio || "Just exploring the Void",
+        bio: userProfile?.bio ?? "Just exploring the Void",
         stats: {
           posts: postsCount || 0,
           followers: followersCount || 0,
@@ -729,6 +729,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         status: "online",
         isVerified: userProfile?.is_verified || false,
         isPrivate: userProfile?.is_private || false,
+        coverPhoto: userProfile?.cover_url || "",
       };
       setCurrentUser(user);
     } catch (error) {
@@ -738,10 +739,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateProfile = (data: Partial<User>) => {
-    const updated = { ...currentUser, ...data };
-    setCurrentUser(updated);
-    localStorage.setItem("userData", JSON.stringify(updated));
+  const updateProfile = async (data: Partial<User>) => {
+    try {
+      if (!currentUser.id) return;
+
+      const profileUpdate: any = {};
+      if (data.name !== undefined) profileUpdate.name = data.name;
+      if (data.bio !== undefined) profileUpdate.bio = data.bio;
+      if (data.avatar !== undefined) profileUpdate.avatar_url = data.avatar;
+      if (data.coverPhoto !== undefined)
+        profileUpdate.cover_url = data.coverPhoto;
+
+      const { error } = await supabase
+        .from("profiles")
+        .update(profileUpdate)
+        .eq("id", currentUser.id);
+
+      if (error) throw error;
+
+      const updated = { ...currentUser, ...data };
+      setCurrentUser(updated);
+      // localStorage is updated via the useEffect on currentUser
+    } catch (error) {
+      console.error("Error updating profile:", error);
+    }
   };
 
   // Supabase Real-time Message Listener
@@ -1223,8 +1244,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           user.id === userId ? { ...user, isFriend: !user.isFriend } : user
         )
       );
+
+      // Refresh follow lists and current user stats
+      await fetchFollowLists();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) await fetchUserProfile(user);
     },
-    [currentUser.id]
+    [currentUser.id, fetchFollowLists, fetchUserProfile]
   );
 
   const login = async (
@@ -1505,39 +1533,58 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const createChat = async (userId: string): Promise<string | null> => {
-    // Check if chat already exists
-    const { data: existingChats } = await supabase
-      .from("chat_participants")
-      .select("chat_id")
-      .eq("user_id", currentUser.id);
+    if (!currentUser.id) return null;
 
-    if (existingChats) {
-      for (const { chat_id } of existingChats) {
-        const { data: participants } = await supabase
-          .from("chat_participants")
-          .select("user_id")
-          .eq("chat_id", chat_id);
+    try {
+      // Check if chat already exists
+      const { data: existingChats } = await supabase
+        .from("chat_participants")
+        .select("chat_id")
+        .eq("user_id", currentUser.id);
 
-        const userIds = participants?.map((p) => p.user_id) || [];
-        if (userIds.length === 2 && userIds.includes(userId)) {
-          return chat_id; // Chat already exists
+      if (existingChats) {
+        for (const { chat_id } of existingChats) {
+          const { data: participants } = await supabase
+            .from("chat_participants")
+            .select("user_id")
+            .eq("chat_id", chat_id);
+
+          const userIds = participants?.map((p) => p.user_id) || [];
+          if (userIds.length === 2 && userIds.includes(userId)) {
+            // Chat already exists, ensure it's in local state
+            const existing = chats.find((c) => c.id === chat_id);
+            if (!existing) {
+              await fetchChats(); // Refresh chats if not found locally
+            }
+            return chat_id;
+          }
         }
       }
-    }
 
-    // Create new chat
-    const { data: newChat } = await supabase
-      .from("chats")
-      .insert({ is_group: false })
-      .select()
-      .single();
+      // Create new chat
+      const { data: newChat, error: chatError } = await supabase
+        .from("chats")
+        .insert({ is_group: false })
+        .select()
+        .single();
 
-    if (newChat) {
-      await supabase.from("chat_participants").insert([
-        { chat_id: newChat.id, user_id: currentUser.id },
-        { chat_id: newChat.id, user_id: userId },
-      ]);
-      return newChat.id;
+      if (chatError) throw chatError;
+
+      if (newChat) {
+        const { error: partError } = await supabase
+          .from("chat_participants")
+          .insert([
+            { chat_id: newChat.id, user_id: currentUser.id },
+            { chat_id: newChat.id, user_id: userId },
+          ]);
+
+        if (partError) throw partError;
+
+        await fetchChats(); // Refresh local chats state
+        return newChat.id;
+      }
+    } catch (error) {
+      console.error("Error creating chat:", error);
     }
 
     return null;
