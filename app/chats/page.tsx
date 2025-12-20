@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { useApp } from "@/context/AppContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/Toast";
+import { useRouter } from "next/navigation";
 
 export default function ChatsPage() {
   const {
