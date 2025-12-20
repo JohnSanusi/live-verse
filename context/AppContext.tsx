@@ -208,11 +208,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     darkMode: true,
   });
 
-  // Load settings on mount
+  // Load settings & user on mount
   useEffect(() => {
     const savedSettings = localStorage.getItem("appSettings");
     if (savedSettings) {
       setSettings(JSON.parse(savedSettings));
+    }
+
+    const savedUser = localStorage.getItem("currentUser");
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      if (parsedUser.id) {
+        setCurrentUser(parsedUser);
+        setIsAuthenticated(true);
+      }
     }
   }, []);
 
@@ -228,9 +237,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       document.documentElement.classList.remove("dark");
       document.documentElement.setAttribute("data-theme", "light");
     }
-
-    console.log("Theme updated:", settings.darkMode ? "dark" : "light");
   }, [settings]);
+
+  // Persist currentUser
+  useEffect(() => {
+    if (currentUser.id) {
+      localStorage.setItem("currentUser", JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem("currentUser");
+    }
+  }, [currentUser]);
 
   // Fetch Feeds, Reels, Marketplace, and Chats from Supabase
   useEffect(() => {
