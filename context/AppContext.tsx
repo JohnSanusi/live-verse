@@ -504,8 +504,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Supabase Auth Listener
   useEffect(() => {
     let mounted = true;
+    let authInitialized = false;
 
     const initializeAuth = async () => {
+      // Safety timeout: force loading to false after 5 seconds
+      const timeoutId = setTimeout(() => {
+        if (mounted && !authInitialized) {
+          console.warn(
+            "Auth initialization timed out, forcing loading to false"
+          );
+          setIsLoading(false);
+        }
+      }, 5000);
+
       try {
         const {
           data: { session },
@@ -513,14 +524,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
         if (session?.user) {
           if (mounted) setIsAuthenticated(true);
-          await fetchUserProfile(session.user);
+          // Only fetch if onAuthStateChange hasn't already started it
+          if (!authInitialized) {
+            await fetchUserProfile(session.user);
+          }
         } else {
           if (mounted) setIsAuthenticated(false);
         }
-        if (mounted) setIsLoading(false);
       } catch (error) {
         console.error("Auth initialization error:", error);
-        if (mounted) setIsLoading(false);
+      } finally {
+        clearTimeout(timeoutId);
+        if (mounted) {
+          authInitialized = true;
+          setIsLoading(false);
+        }
       }
     };
 
@@ -544,10 +562,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             stats: { posts: 0, followers: 0, following: 0 },
           });
         }
-        setIsLoading(false);
       } catch (error) {
         console.error("Auth state change error:", error);
-        setIsLoading(false);
+      } finally {
+        if (mounted) {
+          authInitialized = true;
+          setIsLoading(false);
+        }
       }
     });
 
@@ -574,7 +595,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         .select("following:following_id(*)")
         .eq("follower_id", currentUser.id);
 
-      if (followingData) {
+      if (followingData && followingData.length > 0) {
         setFollowing(
           followingData.map((f: any) => ({
             id: f.following.id,
@@ -586,6 +607,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             isVerified: f.following.is_verified,
           }))
         );
+      } else {
+        setFollowing([]);
       }
 
       // Fetch followers
@@ -594,7 +617,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         .select("follower:follower_id(*)")
         .eq("following_id", currentUser.id);
 
-      if (followersData) {
+      if (followersData && followersData.length > 0) {
         setFollowers(
           followersData.map((f: any) => ({
             id: f.follower.id,
@@ -606,6 +629,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             isVerified: f.follower.is_verified,
           }))
         );
+      } else {
+        setFollowers([]);
       }
     } catch (error) {
       console.error("Error fetching follow lists:", error);

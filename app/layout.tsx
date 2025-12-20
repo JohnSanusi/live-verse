@@ -47,7 +47,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased pb-16 md:pb-0`}
       >
-        <Loader />
         <AppProvider>
           <ToastProvider>
             <AuthGuard>
