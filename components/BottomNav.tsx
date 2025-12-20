@@ -9,13 +9,14 @@ import {
   Video,
   ShoppingBag,
   Search,
+  Bell,
 } from "lucide-react";
 
 import { useApp } from "@/context/AppContext";
 
 export const BottomNav = () => {
   const pathname = usePathname();
-  const { isAuthenticated, isLoading } = useApp();
+  const { isAuthenticated, isLoading, unreadNotificationsCount } = useApp();
 
   if (isLoading) return null; // Or return a Skeleton nav
   if (!isAuthenticated && pathname === "/login") return null;
@@ -25,8 +26,8 @@ export const BottomNav = () => {
     { href: "/", icon: Home, label: "Home" },
     { href: "/search", icon: Search, label: "Search" },
     { href: "/chats", icon: MessageCircle, label: "Chats" },
+    { href: "/notifications", icon: Bell, label: "Activity" },
     { href: "/reels", icon: Video, label: "Reels" },
-    { href: "/marketplace", icon: ShoppingBag, label: "Market" },
     { href: "/settings", icon: User, label: "Settings" },
   ];
 
@@ -47,11 +48,18 @@ export const BottomNav = () => {
               }`}
             >
               <div
-                className={`p-1 rounded-xl transition-colors ${
+                className={`p-1 rounded-xl transition-colors relative ${
                   isActive ? "bg-primary/10" : ""
                 }`}
               >
                 <Icon size={26} strokeWidth={isActive ? 2.5 : 2} />
+                {label === "Activity" && unreadNotificationsCount > 0 && (
+                  <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-background">
+                    {unreadNotificationsCount > 9
+                      ? "9+"
+                      : unreadNotificationsCount}
+                  </span>
+                )}
               </div>
               <span
                 className={`text-[10px] font-bold mt-0.5 ${

@@ -12,6 +12,7 @@ import {
   Video,
   Search,
   ShoppingBag,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useApp } from "@/context/AppContext";
@@ -19,7 +20,8 @@ import { useToast } from "@/components/ui/Toast";
 
 export const Sidebar = () => {
   const pathname = usePathname();
-  const { isAuthenticated, isLoading, logout } = useApp();
+  const { isAuthenticated, isLoading, logout, unreadNotificationsCount } =
+    useApp();
   const { confirm } = useToast();
 
   if (isLoading) return null; // Or return a Skeleton sidebar
@@ -29,6 +31,12 @@ export const Sidebar = () => {
   const navItems = [
     { href: "/", icon: Home, label: "Feed" },
     { href: "/search", icon: Search, label: "Search" },
+    {
+      href: "/notifications",
+      icon: Bell,
+      label: "Notifications",
+      badge: unreadNotificationsCount,
+    },
     { href: "/chats", icon: MessageCircle, label: "Chats" },
     { href: "/reels", icon: Video, label: "Reels" },
     { href: "/marketplace", icon: ShoppingBag, label: "Marketplace" },
@@ -66,7 +74,16 @@ export const Sidebar = () => {
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               }`}
             >
-              <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+              <div className="relative">
+                <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                {label === "Notifications" && unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full">
+                    {unreadNotificationsCount > 9
+                      ? "9+"
+                      : unreadNotificationsCount}
+                  </span>
+                )}
+              </div>
               <span>{label}</span>
             </Link>
           );

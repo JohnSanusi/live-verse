@@ -26,6 +26,7 @@ export interface User {
   isFriend?: boolean;
   isVerified?: boolean;
   coverPhoto?: string;
+  isPrivate?: boolean;
 }
 
 export interface Comment {
@@ -101,6 +102,17 @@ export interface FileItem {
   date: string;
 }
 
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: "follow" | "like" | "comment" | "message";
+  actor_id: string;
+  actor: User;
+  target_id?: string;
+  read: boolean;
+  created_at: string;
+}
+
 interface AppContextType {
   currentUser: User;
   users: User[];
@@ -149,6 +161,11 @@ interface AppContextType {
   searchUsers: (query: string) => Promise<User[]>;
   reels: any[];
   marketplaceItems: any[];
+  notifications: Notification[];
+  unreadNotificationsCount: number;
+  fetchNotifications: () => Promise<void>;
+  markNotificationAsRead: (notificationId: string) => Promise<void>;
+  createChat: (userId: string) => Promise<string | null>;
 }
 
 // --- Mock Data Generators Removed ---
@@ -175,6 +192,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [reels, setReels] = useState<any[]>([]);
   const [marketplaceItems, setMarketplaceItems] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [settings, setSettings] = useState<{
     notifications: boolean;
     privacy: "public" | "private";
@@ -525,6 +543,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchNotifications();
+    }
+  }, [isAuthenticated]);
+
   const fetchUserProfile = async (authUser: any) => {
     // Fetch full profile from DB
     const { data: profile } = await supabase
@@ -609,6 +633,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       },
       status: "online",
       isVerified: userProfile?.is_verified || false,
+      isPrivate: userProfile?.is_private || false,
     };
     setCurrentUser(user);
     // Removed localStorage.setItem("userData")
@@ -669,6 +694,65 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               return chat;
             })
           );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, currentUser.id]);
+
+  // Real-time Notifications Listener
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser.id) return;
+
+    const channel = supabase
+      .channel(`notifications:${currentUser.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        async (payload) => {
+          console.log("New notification received:", payload.new);
+          // Fetch the full notification data (with actor join)
+          const { data } = await supabase
+            .from("notifications")
+            .select(
+              `
+              *,
+              actor:actor_id (id, name, handle, avatar_url, is_verified)
+            `
+            )
+            .eq("id", payload.new.id)
+            .single();
+
+          if (data) {
+            const newNotif: Notification = {
+              id: data.id,
+              user_id: data.user_id,
+              type: data.type as any,
+              actor_id: data.actor_id,
+              actor: {
+                id: data.actor.id,
+                name: data.actor.name,
+                handle: data.actor.handle,
+                avatar: data.actor.avatar_url,
+                bio: "",
+                stats: { posts: 0, followers: 0, following: 0 },
+                isVerified: data.actor.is_verified,
+              },
+              target_id: data.target_id,
+              read: data.read,
+              created_at: data.created_at,
+            };
+
+            setNotifications((prev) => [newNotif, ...prev]);
+          }
         }
       )
       .subscribe();
@@ -906,12 +990,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     [currentUser.id]
   );
 
-  const updateSettings = (newSettings: Partial<typeof settings>) => {
+  const updateSettings = async (newSettings: Partial<typeof settings>) => {
     setSettings((prev) => {
       const updated = { ...prev, ...newSettings };
       console.log("Updating settings:", updated);
       return updated;
     });
+
+    if (newSettings.privacy && currentUser.id) {
+      const isPrivate = newSettings.privacy === "private";
+      await supabase
+        .from("profiles")
+        .update({ is_private: isPrivate })
+        .eq("id", currentUser.id);
+
+      setCurrentUser((prev) => ({ ...prev, isPrivate }));
+    }
   };
 
   const toggleArchiveChat = (chatId: string) => {
@@ -1013,6 +1107,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         });
 
         console.log("Follow result - Error:", insertError);
+
+        // Create notification for the followed user
+        if (!insertError) {
+          await supabase.from("notifications").insert({
+            user_id: userId,
+            type: "follow",
+            actor_id: currentUser.id,
+            read: false,
+          });
+        }
       }
 
       setUsers((prev) =>
@@ -1253,6 +1357,95 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
+  const fetchNotifications = async () => {
+    const { data } = await supabase
+      .from("notifications")
+      .select(
+        `
+        *,
+        actor:actor_id (id, name, handle, avatar_url, is_verified)
+      `
+      )
+      .eq("user_id", currentUser.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (data) {
+      setNotifications(
+        data.map((n: any) => ({
+          id: n.id,
+          user_id: n.user_id,
+          type: n.type,
+          actor_id: n.actor_id,
+          actor: {
+            id: n.actor.id,
+            name: n.actor.name,
+            handle: n.actor.handle,
+            avatar: n.actor.avatar_url,
+            bio: "",
+            stats: { posts: 0, followers: 0, following: 0 },
+            isVerified: n.actor.is_verified,
+          },
+          target_id: n.target_id,
+          read: n.read,
+          created_at: n.created_at,
+        }))
+      );
+    }
+  };
+
+  const markNotificationAsRead = async (notificationId: string) => {
+    await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("id", notificationId);
+
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
+    );
+  };
+
+  const createChat = async (userId: string): Promise<string | null> => {
+    // Check if chat already exists
+    const { data: existingChats } = await supabase
+      .from("chat_participants")
+      .select("chat_id")
+      .eq("user_id", currentUser.id);
+
+    if (existingChats) {
+      for (const { chat_id } of existingChats) {
+        const { data: participants } = await supabase
+          .from("chat_participants")
+          .select("user_id")
+          .eq("chat_id", chat_id);
+
+        const userIds = participants?.map((p) => p.user_id) || [];
+        if (userIds.length === 2 && userIds.includes(userId)) {
+          return chat_id; // Chat already exists
+        }
+      }
+    }
+
+    // Create new chat
+    const { data: newChat } = await supabase
+      .from("chats")
+      .insert({ is_group: false })
+      .select()
+      .single();
+
+    if (newChat) {
+      await supabase.from("chat_participants").insert([
+        { chat_id: newChat.id, user_id: currentUser.id },
+        { chat_id: newChat.id, user_id: userId },
+      ]);
+      return newChat.id;
+    }
+
+    return null;
+  };
+
+  const unreadNotificationsCount = notifications.filter((n) => !n.read).length;
+
   const verifyUser = async (userId: string, verifiedStatus: boolean) => {
     const { error } = await supabase
       .from("profiles")
@@ -1310,6 +1503,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         searchUsers,
         reels,
         marketplaceItems,
+        notifications,
+        unreadNotificationsCount,
+        fetchNotifications,
+        markNotificationAsRead,
+        createChat,
       }}
     >
       {children}
