@@ -13,7 +13,8 @@ import { MessageCircle, Lock } from "lucide-react";
 export default function UserProfilePage() {
   const params = useParams();
   const userId = params.id as string;
-  const { currentUser, toggleLike, addComment, toggleFollow, createChat } = useApp();
+  const { currentUser, toggleLike, addComment, toggleFollow, createChat } =
+    useApp();
   const router = useRouter();
 
   const [user, setUser] = useState<User | null>(null);
@@ -132,6 +133,8 @@ export default function UserProfilePage() {
     } catch (error) {
       console.error("Error in handleFollowToggle:", error);
     }
+  };
+
   const handleMessageUser = async () => {
     if (!user) return;
     const chatId = await createChat(user.id);
@@ -165,7 +168,9 @@ export default function UserProfilePage() {
             <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-6">
               <Lock size={40} className="text-muted-foreground/50" />
             </div>
-            <h2 className="text-xl font-black mb-2 uppercase tracking-tighter">Private Account</h2>
+            <h2 className="text-xl font-black mb-2 uppercase tracking-tighter">
+              Private Account
+            </h2>
             <p className="text-muted-foreground text-sm max-w-[200px]">
               Follow this user to see their posts and reels.
             </p>
