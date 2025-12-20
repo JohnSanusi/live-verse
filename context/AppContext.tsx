@@ -166,6 +166,9 @@ interface AppContextType {
   fetchNotifications: () => Promise<void>;
   markNotificationAsRead: (notificationId: string) => Promise<void>;
   createChat: (userId: string) => Promise<string | null>;
+  followers: User[];
+  following: User[];
+  fetchFollowLists: () => Promise<void>;
 }
 
 // --- Mock Data Generators Removed ---
@@ -193,6 +196,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [reels, setReels] = useState<any[]>([]);
   const [marketplaceItems, setMarketplaceItems] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [followers, setFollowers] = useState<User[]>([]);
+  const [following, setFollowing] = useState<User[]>([]);
   const [settings, setSettings] = useState<{
     notifications: boolean;
     privacy: "public" | "private";
@@ -501,40 +506,49 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     let mounted = true;
 
     const initializeAuth = async () => {
-      // Check active session immediately
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (session?.user) {
-        if (mounted) setIsAuthenticated(true);
-        await fetchUserProfile(session.user);
-      } else {
-        if (mounted) setIsAuthenticated(false);
+        if (session?.user) {
+          if (mounted) setIsAuthenticated(true);
+          await fetchUserProfile(session.user);
+        } else {
+          if (mounted) setIsAuthenticated(false);
+        }
+        if (mounted) setIsLoading(false);
+      } catch (error) {
+        console.error("Auth initialization error:", error);
+        if (mounted) setIsLoading(false);
       }
-      if (mounted) setIsLoading(false); // Auth check done
     };
 
     initializeAuth();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        setIsAuthenticated(true);
-        await fetchUserProfile(session.user);
-      } else {
-        setIsAuthenticated(false);
-        setCurrentUser({
-          id: "",
-          name: "",
-          handle: "",
-          avatar: "",
-          bio: "",
-          stats: { posts: 0, followers: 0, following: 0 },
-        });
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      try {
+        if (session?.user) {
+          setIsAuthenticated(true);
+          await fetchUserProfile(session.user);
+        } else {
+          setIsAuthenticated(false);
+          setCurrentUser({
+            id: "",
+            name: "",
+            handle: "",
+            avatar: "",
+            bio: "",
+            stats: { posts: 0, followers: 0, following: 0 },
+          });
+        }
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Auth state change error:", error);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     return () => {
@@ -546,97 +560,141 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (isAuthenticated) {
       fetchNotifications();
+      fetchFollowLists();
     }
   }, [isAuthenticated]);
 
+  const fetchFollowLists = async () => {
+    if (!currentUser.id) return;
+
+    try {
+      // Fetch following
+      const { data: followingData } = await supabase
+        .from("follows")
+        .select("following:following_id(*)")
+        .eq("follower_id", currentUser.id);
+
+      if (followingData) {
+        setFollowing(
+          followingData.map((f: any) => ({
+            id: f.following.id,
+            name: f.following.name,
+            handle: f.following.handle,
+            avatar: f.following.avatar_url || "",
+            bio: f.following.bio || "",
+            stats: { posts: 0, followers: 0, following: 0 },
+            isVerified: f.following.is_verified,
+          }))
+        );
+      }
+
+      // Fetch followers
+      const { data: followersData } = await supabase
+        .from("follows")
+        .select("follower:follower_id(*)")
+        .eq("following_id", currentUser.id);
+
+      if (followersData) {
+        setFollowers(
+          followersData.map((f: any) => ({
+            id: f.follower.id,
+            name: f.follower.name,
+            handle: f.follower.handle,
+            avatar: f.follower.avatar_url || "",
+            bio: f.follower.bio || "",
+            stats: { posts: 0, followers: 0, following: 0 },
+            isVerified: f.follower.is_verified,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching follow lists:", error);
+    }
+  };
+
   const fetchUserProfile = async (authUser: any) => {
-    // Fetch full profile from DB
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", authUser.id)
-      .single();
-
-    let userProfile = profile;
-
-    if (!userProfile) {
-      // Profile doesn't exist (likely OAuth first login), create it
-      const name =
-        authUser.user_metadata?.full_name ||
-        authUser.email?.split("@")[0] ||
-        "User";
-      const handle =
-        authUser.user_metadata?.user_name ||
-        authUser.email?.split("@")[0] ||
-        "user";
-      const avatar =
-        authUser.user_metadata?.avatar_url ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(
-          name
-        )}&background=random&color=fff&size=512`;
-
-      const { data: newProfile, error: createError } = await supabase
+    try {
+      // Fetch full profile from DB
+      const { data: profile } = await supabase
         .from("profiles")
-        .insert({
-          id: authUser.id,
-          name,
-          handle,
-          avatar_url: avatar,
-          bio: "Just exploring the Void",
-        })
-        .select()
+        .select("*")
+        .eq("id", authUser.id)
         .single();
 
-      if (!createError && newProfile) {
-        userProfile = newProfile;
+      let userProfile = profile;
+
+      if (!profile) {
+        const { data: newProfile, error: createError } = await supabase
+          .from("profiles")
+          .insert({
+            id: authUser.id,
+            name:
+              authUser.user_metadata?.full_name ||
+              authUser.email?.split("@")[0] ||
+              "User",
+            handle:
+              authUser.user_metadata?.user_name ||
+              authUser.email?.split("@")[0] ||
+              "user",
+            avatar_url: authUser.user_metadata?.avatar_url || "",
+            bio: "Just exploring the Void",
+          })
+          .select()
+          .single();
+
+        if (!createError && newProfile) {
+          userProfile = newProfile;
+        }
       }
+
+      // Calculate real stats
+      const { count: postsCount } = await supabase
+        .from("posts")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", authUser.id);
+
+      const { count: followersCount } = await supabase
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("following_id", authUser.id);
+
+      const { count: followingCount } = await supabase
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("follower_id", authUser.id);
+
+      const user: User = {
+        id: authUser.id,
+        name:
+          userProfile?.name ||
+          authUser.user_metadata?.full_name ||
+          authUser.email?.split("@")[0] ||
+          "User",
+        handle:
+          userProfile?.handle ||
+          authUser.user_metadata?.user_name ||
+          authUser.email?.split("@")[0] ||
+          "user",
+        avatar:
+          userProfile?.avatar_url ||
+          authUser.user_metadata?.avatar_url ||
+          (authUser.email ? authUser.email[0].toUpperCase() : "U"),
+        bio: userProfile?.bio || "Just exploring the Void",
+        stats: {
+          posts: postsCount || 0,
+          followers: followersCount || 0,
+          following: followingCount || 0,
+        },
+        status: "online",
+        isVerified: userProfile?.is_verified || false,
+        isPrivate: userProfile?.is_private || false,
+      };
+      setCurrentUser(user);
+    } catch (error) {
+      console.error("Error in fetchUserProfile:", error);
+      // Ensure we set SOME state so loader doesn't hang
+      setIsLoading(false);
     }
-
-    // Calculate real stats
-    const { count: postsCount } = await supabase
-      .from("posts")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", authUser.id);
-
-    const { count: followersCount } = await supabase
-      .from("follows")
-      .select("*", { count: "exact", head: true })
-      .eq("following_id", authUser.id);
-
-    const { count: followingCount } = await supabase
-      .from("follows")
-      .select("*", { count: "exact", head: true })
-      .eq("follower_id", authUser.id);
-
-    const user: User = {
-      id: authUser.id,
-      name:
-        userProfile?.name ||
-        authUser.user_metadata?.full_name ||
-        authUser.email?.split("@")[0] ||
-        "User",
-      handle:
-        userProfile?.handle ||
-        authUser.user_metadata?.user_name ||
-        authUser.email?.split("@")[0] ||
-        "user",
-      avatar:
-        userProfile?.avatar_url ||
-        authUser.user_metadata?.avatar_url ||
-        authUser.email?.[0].toUpperCase() ||
-        "U",
-      bio: userProfile?.bio || "Just exploring the Void",
-      stats: {
-        posts: postsCount || 0,
-        followers: followersCount || 0,
-        following: followingCount || 0,
-      },
-      status: "online",
-      isVerified: userProfile?.is_verified || false,
-      isPrivate: userProfile?.is_private || false,
-    };
-    setCurrentUser(user);
-    // Removed localStorage.setItem("userData")
   };
 
   const updateProfile = (data: Partial<User>) => {
@@ -1508,6 +1566,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         fetchNotifications,
         markNotificationAsRead,
         createChat,
+        followers,
+        following,
+        fetchFollowLists,
       }}
     >
       {children}

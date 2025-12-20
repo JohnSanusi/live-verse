@@ -11,11 +11,21 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/Toast";
 
 export default function ChatsPage() {
-  const { chats, users, addContact, toggleArchiveChat, createGroupChat } =
-    useApp();
+  const {
+    chats,
+    users,
+    followers,
+    following,
+    addContact,
+    createChat,
+    toggleArchiveChat,
+    createGroupChat,
+  } = useApp();
   const { showToast } = useToast();
+  const router = useRouter();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [contactSearch, setContactSearch] = useState("");
   const [showContacts, setShowContacts] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "archived">("all");
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
@@ -30,6 +40,16 @@ export default function ChatsPage() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  const handleStartChat = async (userId: string) => {
+    const chatId = await createChat(userId);
+    if (chatId) {
+      router.push(`/chats/${chatId}`);
+      setShowContacts(false);
+    } else {
+      showToast("Failed to start chat", "error");
+    }
+  };
+
   const filteredChats = chats.filter((chat) => {
     const name = chat.isGroup ? chat.groupName : chat.user?.name;
     const matchesSearch =
@@ -39,6 +59,19 @@ export default function ChatsPage() {
     if (activeTab === "all") return matchesSearch && !chat.isArchived;
     return matchesSearch && chat.isArchived;
   });
+
+  const allContacts = [
+    ...followers.map((f) => ({ ...f, type: "Follower" })),
+    ...following.map((f) => ({ ...f, type: "Following" })),
+  ].filter(
+    (c, index, self) => index === self.findIndex((t) => t.id === c.id) // Remove duplicates
+  );
+
+  const filteredContacts = allContacts.filter(
+    (c) =>
+      c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
+      c.handle.toLowerCase().includes(contactSearch.toLowerCase())
+  );
 
   const handleCreateGroup = () => {
     if (!groupName.trim() || selectedMembers.length === 0) {
@@ -82,7 +115,7 @@ export default function ChatsPage() {
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -20, opacity: 0 }}
-            className="absolute top-16 left-0 right-0 z-50 bg-background border-b border-border p-4 shadow-2xl"
+            className="absolute top-16 left-0 right-0 z-50 bg-background border-b border-border p-4 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
@@ -96,6 +129,15 @@ export default function ChatsPage() {
               >
                 {isCreatingGroup ? "Cancel" : "Create Group"}
               </Button>
+            </div>
+
+            <div className="mb-4">
+              <Input
+                placeholder="Search followers or following..."
+                value={contactSearch}
+                onChange={(e) => setContactSearch(e.target.value)}
+                className="bg-secondary/30 h-10 rounded-xl border-none focus:ring-1 focus:ring-primary/30 text-sm"
+              />
             </div>
 
             {isCreatingGroup && (
@@ -116,53 +158,60 @@ export default function ChatsPage() {
               </div>
             )}
 
-            <div className="space-y-1 max-h-80 overflow-y-auto pr-1">
-              {users.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between p-3 hover:bg-secondary/30 rounded-2xl group transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold border border-primary/20 overflow-hidden">
-                      {user.avatar.length > 2 ? (
-                        <img
-                          src={user.avatar}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        user.name[0]
-                      )}
+            <div className="space-y-1 overflow-y-auto pr-1 flex-1">
+              {filteredContacts.length > 0 ? (
+                filteredContacts.map((user: any) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-3 hover:bg-secondary/30 rounded-2xl group transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold border border-primary/20 overflow-hidden">
+                        {user.avatar.length > 2 ? (
+                          <img
+                            src={user.avatar}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          user.name[0]
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-sm">{user.name}</p>
+                          <span className="text-[8px] bg-secondary/50 px-1.5 py-0.5 rounded text-muted-foreground font-black uppercase tracking-tighter">
+                            {user.type}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          @{user.handle}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-sm">{user.name}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        @{user.handle}
-                      </p>
-                    </div>
+                    {isCreatingGroup ? (
+                      <input
+                        type="checkbox"
+                        checked={selectedMembers.includes(user.id)}
+                        onChange={() => toggleMember(user.id)}
+                        className="h-5 w-5 rounded-full border-2 border-border text-primary focus:ring-primary checked:bg-primary transition-all cursor-pointer shadow-sm"
+                      />
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        className="h-8 px-4 text-xs rounded-full active-scale"
+                        onClick={() => handleStartChat(user.id)}
+                      >
+                        Chat
+                      </Button>
+                    )}
                   </div>
-                  {isCreatingGroup ? (
-                    <input
-                      type="checkbox"
-                      checked={selectedMembers.includes(user.id)}
-                      onChange={() => toggleMember(user.id)}
-                      className="h-5 w-5 rounded-full border-2 border-border text-primary focus:ring-primary checked:bg-primary transition-all cursor-pointer shadow-sm"
-                    />
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      className="h-8 px-4 text-xs rounded-full active-scale"
-                      onClick={() => {
-                        addContact(user);
-                        showToast(`Added ${user.name}`, "success");
-                        setShowContacts(false);
-                      }}
-                    >
-                      Chat
-                    </Button>
-                  )}
+                ))
+              ) : (
+                <div className="text-center py-10 text-muted-foreground italic text-xs">
+                  No matches in your circles
                 </div>
-              ))}
+              )}
             </div>
           </motion.div>
         )}
