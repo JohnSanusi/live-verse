@@ -268,6 +268,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
       console.log("[DIAG] Config Check:", {
+        url: url, // Logging actual URL to verify for typos/existence
         urlPresent: !!url,
         urlLength: url?.length || 0,
         keyPresent: !!key,
