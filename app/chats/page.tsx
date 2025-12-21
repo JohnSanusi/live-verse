@@ -43,10 +43,8 @@ export default function ChatsPage() {
   }, []);
 
   useEffect(() => {
-    if (showContacts) {
-      fetchFollowLists();
-    }
-  }, [showContacts, fetchFollowLists]);
+    fetchFollowLists();
+  }, [fetchFollowLists]);
 
   const handleStartChat = async (userId: string) => {
     const chatId = await createChat(userId);
@@ -77,8 +75,8 @@ export default function ChatsPage() {
 
   const filteredContacts = allContacts.filter(
     (c) =>
-      c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
-      c.handle.toLowerCase().includes(contactSearch.toLowerCase())
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.handle.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleCreateGroup = () => {
@@ -257,6 +255,61 @@ export default function ChatsPage() {
       </div>
 
       <main className="flex-1 overflow-y-auto p-4 space-y-4 bg-background">
+        {searchQuery.trim() && (
+          <div className="space-y-4 mb-4">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary px-2">
+              Contacts
+            </h3>
+            {filteredContacts.length > 0 ? (
+              <div className="space-y-2">
+                {filteredContacts.map((user: any) => (
+                  <motion.div
+                    key={user.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    onClick={() => handleStartChat(user.id)}
+                    className="flex items-center justify-between p-3 bg-secondary/20 hover:bg-secondary/40 rounded-2xl cursor-pointer transition-colors border border-white/5"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold border border-primary/20 overflow-hidden">
+                        {user.avatar.length > 2 ? (
+                          <img
+                            src={user.avatar}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          user.name[0]
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm">{user.name}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                          @{user.handle}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 rounded-full"
+                    >
+                      <Edit size={16} className="text-primary" />
+                    </Button>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-2 text-xs text-muted-foreground italic">
+                No matching contacts
+              </div>
+            )}
+            <div className="h-px bg-border/30 my-4" />
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">
+              Conversations
+            </h3>
+          </div>
+        )}
+
         {filteredChats.map((chat) => (
           <motion.div key={chat.id} layout className="relative">
             {/* Background Action (shows on drag, mobile only) */}

@@ -1,9 +1,5 @@
--- Full Schema and Security Fix for Void
+-- Initial Schema for Void
 -- Run this in your Supabase SQL Editor: https://supabase.com/dashboard/project/_/sql
-
--- -------------------------------------------------------
--- 1. Create Tables
--- -------------------------------------------------------
 
 -- Profiles
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -27,15 +23,24 @@ CREATE TABLE IF NOT EXISTS public.posts (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Likes (Shared for posts and reels)
+-- Reels
+CREATE TABLE IF NOT EXISTS public.reels (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    video_url TEXT NOT NULL,
+    caption TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Likes (Generic Pattern)
 CREATE TABLE IF NOT EXISTS public.likes (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
-    reel_id UUID, -- Will link to reels table once created
+    target_id UUID NOT NULL,
+    target_type TEXT NOT NULL, -- 'post' or 'reel'
+    reaction TEXT DEFAULT 'like',
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user_id, post_id),
-    UNIQUE(user_id, reel_id)
+    UNIQUE(user_id, target_id, target_type)
 );
 
 -- Comments
@@ -46,19 +51,6 @@ CREATE TABLE IF NOT EXISTS public.comments (
     text TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
--- Reels
-CREATE TABLE IF NOT EXISTS public.reels (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    video_url TEXT NOT NULL,
-    caption TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Update likes to reference reels
-ALTER TABLE public.likes DROP CONSTRAINT IF EXISTS likes_reel_id_fkey;
-ALTER TABLE public.likes ADD CONSTRAINT likes_reel_id_fkey FOREIGN KEY (reel_id) REFERENCES public.reels(id) ON DELETE CASCADE;
 
 -- Marketplace Items
 CREATE TABLE IF NOT EXISTS public.marketplace_items (
@@ -121,21 +113,30 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
     actor_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    type TEXT NOT NULL, -- 'like', 'comment', 'follow', 'mention'
+    type TEXT NOT NULL, -- 'like', 'comment', 'follow', 'unfollow'
     target_id UUID,
     read BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Search History
+CREATE TABLE IF NOT EXISTS public.search_history (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    query TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, query)
+);
+
 -- -------------------------------------------------------
--- 2. Enable Row Level Security (RLS)
+-- RLS Activation
 -- -------------------------------------------------------
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.marketplace_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.follows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chats ENABLE ROW LEVEL SECURITY;
@@ -143,68 +144,53 @@ ALTER TABLE public.chat_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.statuses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.search_history ENABLE ROW LEVEL SECURITY;
 
 -- -------------------------------------------------------
--- 3. Define RLS Policies
+-- Policies
 -- -------------------------------------------------------
 
--- Profile Policies
-DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON profiles;
-CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
-CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Public profiles" ON profiles FOR SELECT USING (true);
+CREATE POLICY "Own profile updates" ON profiles FOR UPDATE USING (auth.uid() = id);
 
--- Post Policies
-DROP POLICY IF EXISTS "Posts are viewable by everyone" ON posts;
-CREATE POLICY "Posts are viewable by everyone" ON posts FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Users can insert own posts" ON posts;
-CREATE POLICY "Users can insert own posts" ON posts FOR INSERT WITH CHECK (auth.uid() = user_id);
+-- Publicly readable tables
+CREATE POLICY "Public posts" ON posts FOR SELECT USING (true);
+CREATE POLICY "Public reels" ON reels FOR SELECT USING (true);
+CREATE POLICY "Public likes" ON likes FOR SELECT USING (true);
+CREATE POLICY "Public comments" ON comments FOR SELECT USING (true);
+CREATE POLICY "Public follows" ON follows FOR SELECT USING (true);
+CREATE POLICY "Public marketplace" ON marketplace_items FOR SELECT USING (true);
+CREATE POLICY "Public statuses" ON statuses FOR SELECT USING (true);
 
--- Like Policies
-DROP POLICY IF EXISTS "Likes are viewable by everyone" ON likes;
-CREATE POLICY "Likes are viewable by everyone" ON likes FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Users can toggle likes" ON likes;
-CREATE POLICY "Users can toggle likes" ON likes FOR ALL USING (auth.uid() = user_id);
+-- Authenticated Creations
+CREATE POLICY "Create posts" ON posts FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Create reels" ON reels FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Handle likes" ON likes FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Handle comments" ON comments FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Handle follows" ON follows FOR ALL USING (auth.uid() = follower_id);
+CREATE POLICY "Handle marketplace" ON marketplace_items FOR ALL USING (auth.uid() = seller_id);
+CREATE POLICY "Handle statuses" ON statuses FOR ALL USING (auth.uid() = user_id);
 
--- Comment Policies
-DROP POLICY IF EXISTS "Comments are viewable by everyone" ON comments;
-CREATE POLICY "Comments are viewable by everyone" ON comments FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Users can insert own comments" ON comments;
-CREATE POLICY "Users can insert own comments" ON comments FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- Follow Policies
-DROP POLICY IF EXISTS "Follows are viewable by everyone" ON follows;
-CREATE POLICY "Follows are viewable by everyone" ON follows FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Users can handle own follows" ON follows;
-CREATE POLICY "Users can handle own follows" ON follows FOR ALL USING (auth.uid() = follower_id);
-
--- Chat/Message Policies (Basic - Participants only)
-DROP POLICY IF EXISTS "Participants can view their chats" ON chats;
-CREATE POLICY "Participants can view their chats" ON chats FOR SELECT USING (
+-- Chat Related
+CREATE POLICY "Chat view" ON chats FOR SELECT USING (
     EXISTS (SELECT 1 FROM chat_participants WHERE chat_id = id AND user_id = auth.uid())
 );
-DROP POLICY IF EXISTS "Participants can view messages" ON messages;
-CREATE POLICY "Participants can view messages" ON messages FOR SELECT USING (
+CREATE POLICY "Message view" ON messages FOR SELECT USING (
     EXISTS (SELECT 1 FROM chat_participants WHERE chat_id = messages.chat_id AND user_id = auth.uid())
 );
-DROP POLICY IF EXISTS "Users can send messages" ON messages;
-CREATE POLICY "Users can send messages" ON messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
+CREATE POLICY "Send messages" ON messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
 
--- Status/Notification Policies (Basic)
-CREATE POLICY "Public statuses" ON statuses FOR SELECT USING (true);
-CREATE POLICY "User notifications" ON notifications FOR SELECT USING (auth.uid() = user_id);
+-- User Specific
+CREATE POLICY "Own notifications" ON notifications FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Own search history" ON search_history FOR ALL USING (auth.uid() = user_id);
 
 -- -------------------------------------------------------
--- 4. Storage Buckets & Policies
+-- Storage
 -- -------------------------------------------------------
--- Note: These often need to be done via the UI, but here are the SQL helpers.
 
 INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('posts', 'posts', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('reels', 'reels', true) ON CONFLICT (id) DO NOTHING;
 
--- Policies for public access
-CREATE POLICY "Public Read Access" ON storage.objects FOR SELECT USING (bucket_id IN ('avatars', 'posts', 'reels'));
-CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT WITH CHECK (
-    auth.role() = 'authenticated' AND bucket_id IN ('avatars', 'posts', 'reels')
-);
+CREATE POLICY "Public access" ON storage.objects FOR SELECT USING (bucket_id IN ('avatars', 'posts', 'reels'));
+CREATE POLICY "Auth upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id IN ('avatars', 'posts', 'reels'));

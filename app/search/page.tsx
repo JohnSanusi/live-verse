@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
-import { Search } from "lucide-react";
+import { Search, X, TrendingUp } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { useApp, User } from "@/context/AppContext";
 import { EliteBadge } from "@/components/EliteBadge";
@@ -14,23 +14,61 @@ export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const { searchUsers, toggleFollow, currentUser, users, feeds, isLoading } =
-    useApp();
+  const [history, setHistory] = useState<string[]>([]);
+  const {
+    searchUsers,
+    toggleFollow,
+    currentUser,
+    users,
+    feeds,
+    saveSearchQuery,
+    getSearchHistory,
+    deleteSearchHistoryItem,
+  } = useApp();
+
+  // Load history ONLY when currentUser is available
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const fetchHistory = async () => {
+      const h = await getSearchHistory();
+      setHistory(h);
+    };
+    fetchHistory();
+  }, [getSearchHistory, currentUser?.id]);
 
   useEffect(() => {
+    if (!query.trim() || query.length < 2) {
+      setResults([]);
+      return;
+    }
+
     const delayDebounce = setTimeout(async () => {
-      if (query.trim().length > 1) {
-        setIsSearching(true);
+      setIsSearching(true);
+      try {
         const users = await searchUsers(query);
-        setResults(users.filter((u) => u.id !== currentUser.id));
+        const filtered = users.filter((u) => u.id !== currentUser.id);
+        setResults(filtered);
+
+        // Save to history ONLY if we have results or user specifically searched
+        if (filtered.length > 0) {
+          saveSearchQuery(query);
+        }
+      } catch (err) {
+        console.error("Search failed:", err);
+      } finally {
         setIsSearching(false);
-      } else {
-        setResults([]);
       }
-    }, 500);
+    }, 600);
 
     return () => clearTimeout(delayDebounce);
-  }, [query, searchUsers, currentUser.id]);
+  }, [query, searchUsers, currentUser.id, saveSearchQuery]);
+
+  const handleDeleteHistory = async (e: React.MouseEvent, item: string) => {
+    e.stopPropagation();
+    await deleteSearchHistoryItem(item);
+    setHistory((prev) => prev.filter((i) => i !== item));
+  };
 
   const suggestions = users
     .filter((u) => u.id !== currentUser.id && !u.isFriend)
@@ -86,6 +124,36 @@ export default function SearchPage() {
           </div>
         ) : (
           <>
+            {/* Search History */}
+            {history.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-2">
+                  <h2 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">
+                    Recent Searches
+                  </h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {history.map((item) => (
+                    <motion.div
+                      key={item}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      onClick={() => setQuery(item)}
+                      className="px-4 py-2 bg-secondary/40 border border-border/50 rounded-full flex items-center gap-2 cursor-pointer hover:bg-secondary/60 transition-colors"
+                    >
+                      <span className="text-xs font-medium">{item}</span>
+                      <button
+                        onClick={(e) => handleDeleteHistory(e, item)}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <X size={14} />
+                      </button>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Suggested People */}
             <div className="space-y-4">
               <div className="flex items-center justify-between px-2">

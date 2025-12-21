@@ -161,16 +161,15 @@ interface AppContextType {
     image: File | string,
     category: string
   ) => Promise<void>;
-  settings: {
-    notifications: boolean;
-    privacy: "public" | "private";
-    darkMode: boolean;
-  };
-  updateSettings: (settings: Partial<AppContextType["settings"]>) => void;
+  settings: any;
+  updateSettings: (newSettings: any) => void;
   markChatAsRead: (chatId: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   uploadFile: (bucket: string, file: File) => Promise<string | null>;
   searchUsers: (query: string) => Promise<User[]>;
+  saveSearchQuery: (query: string) => Promise<void>;
+  getSearchHistory: () => Promise<string[]>;
+  deleteSearchHistoryItem: (query: string) => Promise<void>;
   reels: any[];
   marketplaceItems: any[];
   notifications: Notification[];
@@ -644,14 +643,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               .eq("target_id", targetId)
               .eq("target_type", targetType);
             if (error) throw error;
+
+            // Notification for unfollow is rare, but user requested notifications for unfollows too
+            // However, usually we don't notify for "unlike".
           } else {
             const { error } = await supabase
               .from("likes")
-              .update({ reaction }) // We might need to add this column to 'likes' table
+              .update({ reaction })
               .eq("user_id", currentUser.id)
               .eq("target_id", targetId)
               .eq("target_type", targetType);
             if (error) throw error;
+
+            // Notify for reaction change
+            const targetOwnerId =
+              targetType === "post" ? post?.user.id : reel?.user.id;
+            if (targetOwnerId) {
+              await createNotification(targetOwnerId, "like", targetId);
+            }
           }
         } else {
           const { error } = await supabase.from("likes").insert({
@@ -661,6 +670,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             reaction,
           });
           if (error) throw error;
+
+          // Notification for like
+          const targetOwnerId =
+            targetType === "post" ? post?.user.id : reel?.user.id;
+          if (targetOwnerId) {
+            await createNotification(targetOwnerId, "like", targetId);
+          }
         }
       } catch (error) {
         console.error("Error toggling like:", error);
@@ -1143,6 +1159,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (error) throw error;
 
         if (data) {
+          // Notification for comment
+          const post = feeds.find((f) => f.id.toString() === feedId.toString());
+          if (post?.user.id) {
+            await createNotification(post.user.id, "comment", feedId);
+          }
+
           setFeeds((prev) =>
             prev.map((post) => {
               if (post.id.toString() === feedId.toString()) {
@@ -1553,6 +1575,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             .eq("follower_id", currentUser.id)
             .eq("following_id", userId);
           if (error) throw error;
+
+          // User requested notifications for unfollows
+          await createNotification(userId, "unfollow");
         } else {
           const { error } = await supabase.from("follows").insert({
             follower_id: currentUser.id,
@@ -1560,12 +1585,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           });
           if (error) throw error;
 
-          await supabase.from("notifications").insert({
-            user_id: userId,
-            type: "follow",
-            actor_id: currentUser.id,
-            read: false,
-          });
+          // Notification for follow
+          await createNotification(userId, "follow");
         }
 
         await fetchFollowLists();
@@ -1771,6 +1792,73 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const createNotification = async (
+    targetUserId: string,
+    type: "like" | "comment" | "follow" | "unfollow",
+    targetId?: string
+  ) => {
+    if (!currentUser.id || targetUserId === currentUser.id) return;
+
+    try {
+      await supabase.from("notifications").insert({
+        user_id: targetUserId,
+        actor_id: currentUser.id,
+        type,
+        target_id: targetId,
+      });
+    } catch (error) {
+      console.error("Error creating notification:", error);
+    }
+  };
+
+  const saveSearchQuery = useCallback(
+    async (query: string) => {
+      if (!currentUser.id || !query.trim()) return;
+      try {
+        await supabase.from("search_history").upsert({
+          user_id: currentUser.id,
+          query: query.trim(),
+          created_at: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error("Error saving search query:", error);
+      }
+    },
+    [currentUser.id]
+  );
+
+  const getSearchHistory = useCallback(async (): Promise<string[]> => {
+    if (!currentUser.id) return [];
+    try {
+      const { data } = await supabase
+        .from("search_history")
+        .select("query")
+        .eq("user_id", currentUser.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return data?.map((i) => i.query) || [];
+    } catch (error) {
+      console.error("Error getting search history:", error);
+      return [];
+    }
+  }, [currentUser.id]);
+
+  const deleteSearchHistoryItem = useCallback(
+    async (query: string) => {
+      if (!currentUser.id) return;
+      try {
+        await supabase
+          .from("search_history")
+          .delete()
+          .eq("user_id", currentUser.id)
+          .eq("query", query);
+      } catch (error) {
+        console.error("Error deleting search history item:", error);
+      }
+    },
+    [currentUser.id]
+  );
+
   const fetchNotifications = async () => {
     const { data } = await supabase
       .from("notifications")
@@ -1939,11 +2027,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         uploadFile,
         verifyUser,
         searchUsers,
+        saveSearchQuery,
+        getSearchHistory,
+        deleteSearchHistoryItem,
         reels,
         marketplaceItems,
         notifications,
-        unreadNotificationsCount,
-        markNotificationAsRead,
+        unreadNotificationsCount: notifications.filter((n) => !n.read).length,
+        markNotificationAsRead: async (id) => {
+          await supabase
+            .from("notifications")
+            .update({ read: true })
+            .eq("id", id);
+          fetchNotifications();
+        },
         createChat,
         followers,
         following,
