@@ -56,6 +56,7 @@ export interface FeedPost {
 
 export interface Message {
   id: string;
+  sender_id: string;
   text: string;
   time: string;
   isMe: boolean;
@@ -93,7 +94,11 @@ export interface Chat {
   isGroup?: boolean;
   groupName?: string;
   groupAvatar?: string;
+  description?: string;
   members?: User[];
+  isMuted?: boolean;
+  isPinned?: boolean;
+  lastReadAt?: string;
 }
 
 export interface FileItem {
@@ -213,9 +218,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     {}
   );
 
-  const setTyping = useCallback((chatId: string, isTyping: boolean) => {
-    setTypingUsers((prev) => ({ ...prev, [chatId]: isTyping }));
-  }, []);
+  const setTyping = useCallback(
+    (chatId: string, isTyping: boolean) => {
+      const channel = supabase.channel(`chat_type_${chatId}`);
+      channel.send({
+        type: "broadcast",
+        event: "typing",
+        payload: { isTyping, user_id: currentUser.id },
+      });
+      setTypingUsers((prev) => ({ ...prev, [chatId]: isTyping }));
+    },
+    [currentUser.id]
+  );
   const [followers, setFollowers] = useState<User[]>([]);
   const [following, setFollowing] = useState<User[]>([]);
   const [settings, setSettings] = useState<{
@@ -389,24 +403,53 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     bio: "",
                     stats: { posts: 0, followers: 0, following: 0 },
                   },
-              messages: (c.messages || []).map((m: any) => ({
-                id: m.id,
-                text: m.text,
-                image: m.image_url,
-                time: new Date(m.created_at).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }),
-                isMe: m.sender_id === currentUser.id,
-                status: "read",
-              })),
+              messages: (c.messages || [])
+                .map((m: any) => ({
+                  id: m.id,
+                  sender_id: m.sender_id,
+                  text: m.text,
+                  image: m.image_url,
+                  time: new Date(m.created_at).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                  isMe: m.sender_id === currentUser.id,
+                  status: m.status || "sent",
+                  readTime: m.read_at
+                    ? new Date(m.read_at).toLocaleTimeString()
+                    : undefined,
+                }))
+                .sort(
+                  (a: any, b: any) =>
+                    new Date(a.time).getTime() - new Date(b.time).getTime()
+                ),
               lastMessage: {
                 text:
                   c.messages?.[c.messages.length - 1]?.text || "No messages",
-                time: "Just now",
+                time: c.messages?.[c.messages.length - 1]
+                  ? new Date(
+                      c.messages[c.messages.length - 1].created_at
+                    ).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "",
+                unread:
+                  c.messages?.filter(
+                    (m: any) =>
+                      m.sender_id !== currentUser.id && m.status !== "read"
+                  ).length || 0,
               },
               isGroup: c.is_group,
               groupName: c.name,
+              groupAvatar: c.avatar_url,
+              description: c.description,
+              members: c.chat_participants.map((p: any) => ({
+                id: p.profiles.id,
+                name: p.profiles.name,
+                avatar: p.profiles.avatar_url,
+                handle: p.profiles.handle,
+              })),
             };
           })
         );
@@ -697,6 +740,40 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "messages" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            // New message received
+            fetchChats();
+          } else if (payload.eventType === "UPDATE") {
+            // Message statused updated (read receipt)
+            setChats((prev) =>
+              prev.map((chat) =>
+                chat.id === payload.new.chat_id
+                  ? {
+                      ...chat,
+                      messages: chat.messages.map((m) =>
+                        m.id === payload.new.id
+                          ? {
+                              ...m,
+                              status: payload.new.status,
+                              readTime: payload.new.read_at
+                                ? new Date(
+                                    payload.new.read_at
+                                  ).toLocaleTimeString()
+                                : undefined,
+                            }
+                          : m
+                      ),
+                    }
+                  : chat
+              )
+            );
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "chats" },
         () => fetchChats()
       )
       .on(
@@ -1126,6 +1203,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
           const formattedMessage: Message = {
             id: newMessage.id,
+            sender_id: newMessage.sender_id,
             text: newMessage.text,
             time: new Date(newMessage.created_at).toLocaleTimeString([], {
               hour: "2-digit",
@@ -1247,6 +1325,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const tempId = `temp-${Math.random()}`;
       const optimisticMsg: Message = {
         id: tempId,
+        sender_id: currentUser.id,
         text,
         time: new Date().toLocaleTimeString([], {
           hour: "2-digit",
@@ -1305,9 +1384,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     ...chat,
                     messages: chat.messages.map((m) =>
                       m.id === tempId
-                        ? { ...m, id: data.id, image: mediaUrl }
+                        ? { ...m, id: data.id, image: mediaUrl, status: "sent" }
                         : m
                     ),
+                    lastMessage: { text: text || "Image", time: "Just now" },
                   }
                 : chat
             )
@@ -1523,25 +1603,32 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  const createGroupChat = (name: string, memberIds: string[]) => {
-    const groupMembers = users.filter((u) => memberIds.includes(u.id));
-    const newChat: Chat = {
-      id: Date.now().toString(),
-      user: currentUser, // Creator as representative
-      messages: [],
-      lastMessage: {
-        text: "Group created",
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        }),
-      },
-      isGroup: true,
-      groupName: name,
-      members: [currentUser, ...groupMembers],
-    };
-    setChats((prev) => [newChat, ...prev]);
+  const createGroupChat = async (name: string, members: string[]) => {
+    try {
+      const { data: newChat, error: chatError } = await supabase
+        .from("chats")
+        .insert({ name, is_group: true })
+        .select()
+        .single();
+
+      if (chatError) throw chatError;
+
+      if (newChat) {
+        const participants = [
+          { chat_id: newChat.id, user_id: currentUser.id },
+          ...members.map((id) => ({ chat_id: newChat.id, user_id: id })),
+        ];
+
+        const { error: partError } = await supabase
+          .from("chat_participants")
+          .insert(participants);
+
+        if (partError) throw partError;
+        await fetchChats();
+      }
+    } catch (error) {
+      console.error("Error creating group chat:", error);
+    }
   };
 
   const addFile = () => {

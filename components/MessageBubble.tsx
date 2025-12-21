@@ -52,18 +52,13 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
         </p>
       </div>
       {isMe && status && (
-        <div className="mt-0.5 px-1 flex items-center justify-end gap-1">
+        <div className="mt-0.5 px-0.5 flex items-center justify-end">
           {status === "sent" ? (
-            <Check size={14} className="text-muted-foreground" />
+            <Check size={14} className="text-muted-foreground/60" />
           ) : status === "delivered" ? (
-            <CheckCheck size={14} className="text-muted-foreground" />
+            <CheckCheck size={14} className="text-muted-foreground/60" />
           ) : (
-            <CheckCheck size={14} className="text-blue-500" />
-          )}
-          {status === "read" && readTime && (
-            <span className="text-[9px] text-muted-foreground">
-              Read {readTime}
-            </span>
+            <CheckCheck size={14} className="text-blue-400" />
           )}
         </div>
       )}

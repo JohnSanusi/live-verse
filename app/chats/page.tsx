@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { ChatListItem } from "@/components/ChatListItem";
-import { Search, Edit, Archive, FolderArchive } from "lucide-react";
+import { Search, Edit, Archive, FolderArchive, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useApp } from "@/context/AppContext";
@@ -101,16 +101,29 @@ export default function ChatsPage() {
   return (
     <div className="pb-20 h-screen flex flex-col relative overflow-hidden bg-background">
       <Header
-        title="Messages"
+        title="Chats"
         action={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-10 w-10 p-0 rounded-full bg-secondary/30 hover:bg-secondary active-scale"
-            onClick={() => setShowContacts(!showContacts)}
-          >
-            <Edit size={20} />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 w-10 p-0 rounded-full bg-secondary/30 hover:bg-secondary active-scale"
+              onClick={() => setShowContacts(!showContacts)}
+            >
+              <Users size={20} className="text-primary" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 w-10 p-0 rounded-full bg-secondary/30 hover:bg-secondary active-scale"
+              onClick={() => {
+                setShowContacts(true);
+                setIsCreatingGroup(false);
+              }}
+            >
+              <Edit size={20} className="text-primary" />
+            </Button>
+          </div>
         }
       />
 

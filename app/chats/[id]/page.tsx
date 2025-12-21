@@ -12,6 +12,13 @@ import {
   Paperclip,
   Mic,
   X,
+  Search,
+  Users,
+  Info,
+  ChevronRight,
+  Shield,
+  Bell,
+  Trash2,
 } from "lucide-react";
 import { EliteBadge } from "@/components/EliteBadge";
 import { Button } from "@/components/ui/Button";
@@ -25,13 +32,20 @@ export default function ChatDetailPage() {
   const params = useParams();
   const router = useRouter();
   const chatId = params.id as string;
-  const { chats, sendMessage, markChatAsRead, typingUsers, setTyping } =
-    useApp();
+  const {
+    chats,
+    sendMessage,
+    markChatAsRead,
+    typingUsers,
+    setTyping,
+    currentUser,
+  } = useApp();
   const { showToast, confirm } = useToast();
   const [text, setText] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showOptions, setShowOptions] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -64,6 +78,24 @@ export default function ChatDetailPage() {
       supabase.removeChannel(channel);
     };
   }, [chatId, markChatAsRead, setTyping]);
+
+  const handleTyping = () => {
+    const channel = supabase.channel(`chat_type_${chatId}`);
+    channel.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { isTyping: true, user_id: chat?.user.id },
+    });
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      channel.send({
+        type: "broadcast",
+        event: "typing",
+        payload: { isTyping: false, user_id: chat?.user.id },
+      });
+    }, 3000);
+  };
 
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -171,17 +203,17 @@ export default function ChatDetailPage() {
             variant="ghost"
             size="sm"
             className="h-10 w-10 p-0 rounded-full active-scale"
-            onClick={() => handleCall("voice")}
+            onClick={() => handleCall("video")}
           >
-            <Phone size={22} />
+            <Video size={20} />
           </Button>
           <Button
             variant="ghost"
             size="sm"
             className="h-10 w-10 p-0 rounded-full active-scale"
-            onClick={() => handleCall("video")}
+            onClick={() => setShowInfo(true)}
           >
-            <Video size={22} />
+            <Info size={20} />
           </Button>
           <Button
             variant="ghost"
@@ -189,7 +221,7 @@ export default function ChatDetailPage() {
             className="h-10 w-10 p-0 rounded-full active-scale"
             onClick={() => setShowOptions(!showOptions)}
           >
-            <MoreVertical size={22} />
+            <MoreVertical size={20} />
           </Button>
 
           {showOptions && (
@@ -216,6 +248,166 @@ export default function ChatDetailPage() {
           )}
         </div>
       </header>
+
+      {/* Info Panel / Sidebar (WhatsApp Style) */}
+      <AnimatePresence>
+        {showInfo && (
+          <div className="fixed inset-0 z-[100] flex justify-end">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setShowInfo(false)}
+            />
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="relative w-full max-w-sm bg-background border-l border-border h-full overflow-y-auto"
+            >
+              <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background/80 backdrop-blur-md z-10">
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-full"
+                    onClick={() => setShowInfo(false)}
+                  >
+                    <X size={20} />
+                  </Button>
+                  <h3 className="font-bold">Contact Info</h3>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center p-8 border-b border-border bg-gradient-to-b from-secondary/30 to-transparent">
+                <div className="h-32 w-32 rounded-full overflow-hidden border-4 border-background shadow-xl mb-4 group relative">
+                  {chat.isGroup ? (
+                    <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-4xl font-black">
+                      {chat.groupName?.[0]}
+                    </div>
+                  ) : chat.user.avatar.length > 2 ? (
+                    <img
+                      src={chat.user.avatar}
+                      alt={chat.user.name}
+                      className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-4xl font-black">
+                      {chat.user.avatar}
+                    </div>
+                  )}
+                </div>
+                <h2 className="text-xl font-black text-center">
+                  {chat.isGroup ? chat.groupName : chat.user.name}
+                </h2>
+                <p className="text-muted-foreground text-sm font-medium">
+                  {chat.isGroup
+                    ? `Group • ${chat.members?.length} Members`
+                    : chat.user.handle}
+                </p>
+              </div>
+
+              {!chat.isGroup && (
+                <div className="p-4 border-b border-border">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">
+                    About
+                  </h4>
+                  <p className="text-sm font-medium">
+                    {chat.user.bio || "No status set"}
+                  </p>
+                </div>
+              )}
+
+              {chat.isGroup && (
+                <div className="p-4 border-b border-border">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">
+                    Description
+                  </h4>
+                  <p className="text-sm font-medium">
+                    {chat.description || "WhatsApp group description..."}
+                  </p>
+                </div>
+              )}
+
+              <div className="py-2">
+                {[
+                  { icon: Bell, label: "Mute Notifications", right: "Never" },
+                  {
+                    icon: Shield,
+                    label: "Encryption",
+                    desc: "Messages are end-to-end encrypted",
+                  },
+                  { icon: Trash2, label: "Clear Chat", danger: true },
+                ].map((item, idx) => (
+                  <button
+                    key={idx}
+                    className={`w-full flex items-center gap-4 px-4 py-4 hover:bg-secondary/50 transition-colors ${
+                      item.danger ? "text-red-500" : ""
+                    }`}
+                  >
+                    <div
+                      className={`h-10 w-10 rounded-xl flex items-center justify-center ${
+                        item.danger ? "bg-red-500/10" : "bg-primary/5 shadow-sm"
+                      }`}
+                    >
+                      <item.icon size={20} />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="font-bold text-sm">{item.label}</div>
+                      {item.desc && (
+                        <div className="text-[10px] text-muted-foreground font-medium">
+                          {item.desc}
+                        </div>
+                      )}
+                    </div>
+                    {item.right && (
+                      <div className="text-xs text-muted-foreground font-medium">
+                        {item.right}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {chat.isGroup && (
+                <div className="p-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">
+                    {chat.members?.length} Participants
+                  </h4>
+                  <div className="space-y-4">
+                    {chat.members?.map((member) => (
+                      <div key={member.id} className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-muted overflow-hidden">
+                          {member.avatar.length > 2 ? (
+                            <img
+                              src={member.avatar}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                              {member.avatar}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-sm">{member.name}</div>
+                          <div className="text-[10px] text-muted-foreground font-medium">
+                            {member.id === currentUser.id
+                              ? "You"
+                              : member.handle}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Messages Area */}
       <main className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -310,22 +502,7 @@ export default function ChatDetailPage() {
               value={text}
               onChange={(e) => {
                 setText(e.target.value);
-                const channel = supabase.channel(`chat_type_${chatId}`);
-                channel.send({
-                  type: "broadcast",
-                  event: "typing",
-                  payload: { isTyping: true },
-                });
-
-                if (typingTimeoutRef.current)
-                  clearTimeout(typingTimeoutRef.current);
-                typingTimeoutRef.current = setTimeout(() => {
-                  channel.send({
-                    type: "broadcast",
-                    event: "typing",
-                    payload: { isTyping: false },
-                  });
-                }, 3000);
+                handleTyping();
               }}
             />
             <Button
