@@ -301,7 +301,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Helper to prevent infinite hangs
   const withTimeout = async <T,>(
-    promise: Promise<T>,
+    promise: PromiseLike<T>,
     ms: number = 10000,
     context: string
   ): Promise<T> => {
