@@ -13,6 +13,7 @@ ALTER TABLE public.chat_participants ADD COLUMN IF NOT EXISTS last_read_at TIMES
 -- 3. Add metadata to chats (groups)
 ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.profiles(id);
 
 -- 5. RLS Policies for Chats
 -- Enable RLS
@@ -20,13 +21,14 @@ ALTER TABLE public.chats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
--- Chats: Users can see chats they are part of
+-- Chats: Users can see chats they are part of OR chats they created
 DROP POLICY IF EXISTS "Users can view their own chats" ON public.chats;
 CREATE POLICY "Users can view their own chats" ON public.chats
 FOR SELECT USING (
+  created_by = auth.uid() OR
   EXISTS (
     SELECT 1 FROM public.chat_participants
-    WHERE chat_participants.chat_id = chats.id
+    WHERE chat_participants.chat_id = id
     AND chat_participants.user_id = auth.uid()
   )
 );
@@ -34,7 +36,7 @@ FOR SELECT USING (
 -- Chats: Users can create chats
 DROP POLICY IF EXISTS "Users can create chats" ON public.chats;
 CREATE POLICY "Users can create chats" ON public.chats
-FOR INSERT WITH CHECK (true);
+FOR INSERT WITH CHECK (auth.uid() = created_by);
 
 -- Chat Participants: Users can view participants if they are authenticated
 -- (Security is maintained because chats and messages still require membership)

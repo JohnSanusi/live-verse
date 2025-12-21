@@ -980,34 +980,42 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
 
-      if (session?.user) {
-        setIsAuthenticated(true);
-        await fetchUserProfile(session.user);
-        if (mounted) setIsLoading(false);
-      } else {
-        setIsAuthenticated(false);
-        setCurrentUser({
-          id: "",
-          name: "",
-          handle: "",
-          avatar: "",
-          bio: "",
-          stats: { posts: 0, followers: 0, following: 0 },
-        });
+      try {
+        if (session?.user) {
+          setIsAuthenticated(true);
+          await fetchUserProfile(session.user);
+        } else {
+          setIsAuthenticated(false);
+          setCurrentUser({
+            id: "",
+            name: "",
+            handle: "",
+            avatar: "",
+            bio: "",
+            stats: { posts: 0, followers: 0, following: 0 },
+          });
+        }
+      } catch (err) {
+        console.error("Auth state change handling failed:", err);
+      } finally {
         if (mounted) setIsLoading(false);
       }
     });
 
-    // Check initial session
     const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.user && mounted) {
-        setIsAuthenticated(true);
-        await fetchUserProfile(session.user);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.user && mounted) {
+          setIsAuthenticated(true);
+          await fetchUserProfile(session.user);
+        }
+      } catch (err) {
+        console.error("Auth initialization failed:", err);
+      } finally {
+        if (mounted) setIsLoading(false);
       }
-      if (mounted) setIsLoading(false);
     };
     checkSession();
 
@@ -1059,21 +1067,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // Calculate real stats
-      const { count: postsCount } = await supabase
-        .from("posts")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", authUser.id);
+      // Calculate real stats in parallel to prevent blocking profile load
+      const [postsRes, followersRes, followingRes] = await Promise.all([
+        supabase
+          .from("posts")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", authUser.id),
+        supabase
+          .from("follows")
+          .select("*", { count: "exact", head: true })
+          .eq("following_id", authUser.id),
+        supabase
+          .from("follows")
+          .select("*", { count: "exact", head: true })
+          .eq("follower_id", authUser.id),
+      ]);
 
-      const { count: followersCount } = await supabase
-        .from("follows")
-        .select("*", { count: "exact", head: true })
-        .eq("following_id", authUser.id);
-
-      const { count: followingCount } = await supabase
-        .from("follows")
-        .select("*", { count: "exact", head: true })
-        .eq("follower_id", authUser.id);
+      const postsCount = postsRes.count;
+      const followersCount = followersRes.count;
+      const followingCount = followingRes.count;
 
       const profile: User = {
         id: authUser.id,
@@ -2070,7 +2082,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Create new chat
       const { data: newChat, error: chatError } = await supabase
         .from("chats")
-        .insert({ is_group: false })
+        .insert({ is_group: false, created_by: currentUser.id })
         .select()
         .single();
 
