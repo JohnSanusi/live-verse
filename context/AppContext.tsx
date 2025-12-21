@@ -386,7 +386,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         console.warn("Failed to fetch follows during search:", followErr);
       }
 
-      return data.map((p: any) => ({
+      return (data || []).map((p: any) => ({
         id: p.id,
         name: p.name,
         handle: p.handle,
