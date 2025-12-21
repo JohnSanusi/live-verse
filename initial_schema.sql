@@ -271,7 +271,11 @@ CREATE POLICY "Send messages" ON messages FOR INSERT WITH CHECK ((select auth.ui
 -- User Specific
 DROP POLICY IF EXISTS "Own notifications" ON notifications;
 CREATE POLICY "Own notifications" ON notifications FOR SELECT USING ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "Create notifications" ON notifications;
 CREATE POLICY "Create notifications" ON notifications FOR INSERT WITH CHECK ((select auth.uid()) IS NOT NULL);
+
+DROP POLICY IF EXISTS "Update notifications" ON notifications;
 CREATE POLICY "Update notifications" ON notifications FOR UPDATE USING ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Own search history" ON search_history;
