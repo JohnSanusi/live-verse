@@ -430,164 +430,276 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser.id]);
 
-  // Fetch Feeds, Reels, Marketplace, and Chats from Supabase
-  useEffect(() => {
-    const fetchData = async () => {
-      // Fetch Posts
-      const { data: postsData } = await supabase
-        .from("posts")
-        .select(
-          `
-          *,
-          profiles:user_id (id, name, avatar_url, handle, is_verified),
-          likes (user_id),
-          comments (
-            id,
-            text,
-            created_at,
-            user_id,
-            profiles:user_id (id, name, avatar_url, handle, is_verified)
-          )
+  const fetchPosts = useCallback(async () => {
+    const { data: postsData } = await supabase
+      .from("posts")
+      .select(
         `
+        *,
+        profiles:user_id (id, name, avatar_url, handle, is_verified),
+        likes (user_id),
+        comments (
+          id,
+          text,
+          created_at,
+          user_id,
+          profiles:user_id (id, name, avatar_url, handle, is_verified)
         )
-        .order("created_at", { ascending: false });
+      `
+      )
+      .order("created_at", { ascending: false });
 
-      if (postsData) {
-        setFeeds(
-          postsData.map((post: any) => ({
-            id: post.id,
+    if (postsData) {
+      setFeeds(
+        postsData.map((post: any) => ({
+          id: post.id,
+          user: {
+            id: post.profiles.id,
+            name: post.profiles.name,
+            avatar: post.profiles.avatar_url,
+            handle: post.profiles.handle,
+            isVerified: post.profiles.is_verified,
+            bio: "",
+            stats: { posts: 0, followers: 0, following: 0 },
+          },
+          content: post.content,
+          stats: {
+            likes: post.likes.length,
+            comments: post.comments.length,
+          },
+          liked: post.likes.some((l: any) => l.user_id === currentUser.id),
+          commentsList: post.comments.map((c: any) => ({
+            id: c.id,
             user: {
-              id: post.profiles.id,
-              name: post.profiles.name,
-              avatar: post.profiles.avatar_url,
-              handle: post.profiles.handle,
-              isVerified: post.profiles.is_verified,
+              id: c.profiles.id,
+              name: c.profiles.name,
+              avatar: c.profiles.avatar_url,
+              handle: c.profiles.handle,
+              isVerified: c.profiles.is_verified,
               bio: "",
               stats: { posts: 0, followers: 0, following: 0 },
             },
-            content: post.content,
-            stats: {
-              likes: post.likes.length,
-              comments: post.comments.length,
-            },
-            liked: post.likes.some((l: any) => l.user_id === currentUser.id),
-            commentsList: post.comments.map((c: any) => ({
-              id: c.id,
-              user: {
-                id: c.profiles.id,
-                name: c.profiles.name,
-                avatar: c.profiles.avatar_url,
-                handle: c.profiles.handle,
-                isVerified: c.profiles.is_verified,
+            text: c.text,
+            time: new Date(c.created_at).toLocaleString(),
+          })),
+        }))
+      );
+    }
+  }, [currentUser.id]);
+
+  const fetchReelsData = useCallback(async () => {
+    const { data: reelsData } = await supabase
+      .from("reels")
+      .select(
+        `
+        *,
+        profiles:user_id (id, name, avatar_url, handle, is_verified),
+        likes (user_id)
+      `
+      )
+      .order("created_at", { ascending: false });
+
+    if (reelsData) {
+      setReels(
+        reelsData.map((r: any) => ({
+          id: r.id,
+          user: {
+            id: r.profiles.id,
+            name: r.profiles.name,
+            avatar: r.profiles.avatar_url,
+            handle: r.profiles.handle,
+            isVerified: r.profiles.is_verified,
+            bio: "",
+            stats: { posts: 0, followers: 0, following: 0 },
+          },
+          video: r.video_url,
+          caption: r.caption,
+          stats: {
+            likes: r.likes.length,
+            comments: 0,
+            shares: 0,
+          },
+          liked: r.likes.some((l: any) => l.user_id === currentUser.id),
+        }))
+      );
+    }
+  }, [currentUser.id]);
+
+  const fetchMarketplace = useCallback(async () => {
+    const { data: marketData } = await supabase
+      .from("marketplace_items")
+      .select(
+        `
+        *,
+        profiles:seller_id (id, name, avatar_url, handle, is_verified)
+      `
+      )
+      .order("created_at", { ascending: false });
+
+    if (marketData) {
+      setMarketplaceItems(marketData);
+    }
+  }, []);
+
+  const fetchStatuses = useCallback(async () => {
+    const { data: statusesData } = await supabase
+      .from("statuses")
+      .select(
+        `
+        *,
+        profiles:user_id (id, name, avatar_url, handle, is_verified)
+      `
+      )
+      .order("created_at", { ascending: false });
+
+    if (statusesData) {
+      const now = Date.now();
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+      const activeStatuses = statusesData
+        .filter((s) => now - new Date(s.created_at).getTime() < twentyFourHours)
+        .map((s) => ({
+          id: s.id,
+          user: {
+            id: s.profiles.id,
+            name: s.profiles.name,
+            avatar: s.profiles.avatar_url,
+            handle: s.profiles.handle,
+            isVerified: s.profiles.is_verified,
+            bio: s.profiles.bio || "",
+            stats: { posts: 0, followers: 0, following: 0 },
+          },
+          createdAt: s.created_at,
+          items: s.items,
+          isUnseen: true,
+        }));
+      setStatuses(activeStatuses);
+    }
+  }, []);
+
+  // Initial Fetch & Realtime setup
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Initial load
+    fetchPosts();
+    fetchReelsData();
+    fetchMarketplace();
+    fetchStatuses();
+    fetchUsers();
+    fetchChats();
+    fetchNotifications();
+    fetchFollowLists();
+
+    // Subscribe to all changes
+    const channel = supabase
+      .channel("app-realtime")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles" },
+        () => {
+          fetchUsers();
+          fetchPosts(); // Profiles are joined in posts
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "posts" },
+        () => fetchPosts()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "likes" },
+        () => {
+          fetchPosts();
+          fetchReelsData();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "comments" },
+        () => fetchPosts()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
+        () => fetchChats()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "follows" },
+        () => {
+          fetchUsers();
+          fetchFollowLists();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        async (payload) => {
+          console.log("New notification received:", payload.new);
+          // Fetch the full notification data (with actor join)
+          const { data } = await supabase
+            .from("notifications")
+            .select(
+              `
+              *,
+              actor:actor_id (id, name, handle, avatar_url, is_verified)
+            `
+            )
+            .eq("id", payload.new.id)
+            .single();
+
+          if (data) {
+            const newNotif: Notification = {
+              id: data.id,
+              user_id: data.user_id,
+              type: data.type as any,
+              actor_id: data.actor_id,
+              actor: {
+                id: data.actor.id,
+                name: data.actor.name,
+                handle: data.actor.handle,
+                avatar: data.actor.avatar_url,
                 bio: "",
                 stats: { posts: 0, followers: 0, following: 0 },
+                isVerified: data.actor.is_verified,
               },
-              text: c.text,
-              time: new Date(c.created_at).toLocaleString(),
-            })),
-          }))
-        );
-      }
+              target_id: data.target_id,
+              read: data.read,
+              created_at: data.created_at,
+            };
 
-      // Fetch Reels
-      const { data: reelsData } = await supabase
-        .from("reels")
-        .select(
-          `
-          *,
-          profiles:user_id (id, name, avatar_url, handle, is_verified),
-          likes (user_id)
-        `
-        )
-        .order("created_at", { ascending: false });
+            setNotifications((prev) => [newNotif, ...prev]);
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "statuses" },
+        () => fetchStatuses()
+      )
+      .subscribe();
 
-      if (reelsData) {
-        setReels(
-          reelsData.map((r: any) => ({
-            id: r.id,
-            user: {
-              id: r.profiles.id,
-              name: r.profiles.name,
-              avatar: r.profiles.avatar_url,
-              handle: r.profiles.handle,
-              isVerified: r.profiles.is_verified,
-              bio: "",
-              stats: { posts: 0, followers: 0, following: 0 },
-            },
-            video: r.video_url,
-            caption: r.caption,
-            stats: {
-              likes: r.likes.length,
-              comments: 0,
-              shares: 0,
-            },
-            liked: r.likes.some((l: any) => l.user_id === currentUser.id),
-          }))
-        );
-      }
-
-      // Fetch Marketplace
-      const { data: marketData } = await supabase
-        .from("marketplace_items")
-        .select(
-          `
-          *,
-          profiles:seller_id (id, name, avatar_url, handle, is_verified)
-        `
-        )
-        .order("created_at", { ascending: false });
-
-      if (marketData) {
-        setMarketplaceItems(marketData);
-      }
-
-      // Fetch & Filter Statuses
-      const { data: statusesData } = await supabase
-        .from("statuses")
-        .select(
-          `
-          *,
-          profiles:user_id (id, name, avatar_url, handle, is_verified)
-        `
-        )
-        .order("created_at", { ascending: false });
-
-      if (statusesData) {
-        const now = Date.now();
-        const twentyFourHours = 24 * 60 * 60 * 1000;
-        const activeStatuses = statusesData
-          .filter(
-            (s) => now - new Date(s.created_at).getTime() < twentyFourHours
-          )
-          .map((s) => ({
-            id: s.id,
-            user: {
-              id: s.profiles.id,
-              name: s.profiles.name,
-              avatar: s.profiles.avatar_url,
-              handle: s.profiles.handle,
-              isVerified: s.profiles.is_verified,
-              bio: s.profiles.bio || "",
-              stats: { posts: 0, followers: 0, following: 0 },
-            },
-            createdAt: s.created_at,
-            items: s.items,
-            isUnseen: true, // Mock simple unseen state
-          }));
-        setStatuses(activeStatuses);
-      }
-
-      // Fetch Initial Users for suggestions
-      await fetchUsers();
-
-      // Fetch Chats via standalone function
-      await fetchChats();
+    return () => {
+      supabase.removeChannel(channel);
     };
-
-    if (isAuthenticated) {
-      fetchData();
-    }
-  }, [isAuthenticated, currentUser.id, fetchChats, fetchUsers]);
+  }, [
+    isAuthenticated,
+    fetchPosts,
+    fetchReelsData,
+    fetchMarketplace,
+    fetchStatuses,
+    fetchUsers,
+    fetchChats,
+    fetchNotifications,
+    fetchFollowLists,
+    currentUser.id,
+  ]);
 
   const toggleLike = useCallback(
     async (
@@ -785,7 +897,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isAuthenticated]);
 
-  const fetchFollowLists = async () => {
+  const fetchFollowLists = useCallback(async () => {
     if (!currentUser.id) return;
 
     try {
@@ -835,7 +947,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error fetching follow lists:", error);
     }
-  };
+  }, [currentUser.id]);
 
   const fetchUserProfile = async (authUser: any) => {
     try {
@@ -1051,65 +1163,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               return chat;
             })
           );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isAuthenticated, currentUser.id]);
-
-  // Real-time Notifications Listener
-  useEffect(() => {
-    if (!isAuthenticated || !currentUser.id) return;
-
-    const channel = supabase
-      .channel(`notifications:${currentUser.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${currentUser.id}`,
-        },
-        async (payload) => {
-          console.log("New notification received:", payload.new);
-          // Fetch the full notification data (with actor join)
-          const { data } = await supabase
-            .from("notifications")
-            .select(
-              `
-              *,
-              actor:actor_id (id, name, handle, avatar_url, is_verified)
-            `
-            )
-            .eq("id", payload.new.id)
-            .single();
-
-          if (data) {
-            const newNotif: Notification = {
-              id: data.id,
-              user_id: data.user_id,
-              type: data.type as any,
-              actor_id: data.actor_id,
-              actor: {
-                id: data.actor.id,
-                name: data.actor.name,
-                handle: data.actor.handle,
-                avatar: data.actor.avatar_url,
-                bio: "",
-                stats: { posts: 0, followers: 0, following: 0 },
-                isVerified: data.actor.is_verified,
-              },
-              target_id: data.target_id,
-              read: data.read,
-              created_at: data.created_at,
-            };
-
-            setNotifications((prev) => [newNotif, ...prev]);
-          }
         }
       )
       .subscribe();
@@ -1866,7 +1919,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     [currentUser.id]
   );
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     const { data } = await supabase
       .from("notifications")
       .select(
@@ -1901,7 +1954,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }))
       );
     }
-  };
+  }, [currentUser.id]);
 
   const markNotificationAsRead = async (notificationId: string) => {
     await supabase
