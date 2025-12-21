@@ -1,4 +1,3 @@
-```
 "use client";
 
 import React from "react";
@@ -33,7 +32,9 @@ export const Header = ({ title, action, className }: HeaderProps) => {
         >
           <Bell
             size={22}
-            className={pathname === "/notifications" ? "text-primary" : "text-foreground"}
+            className={
+              pathname === "/notifications" ? "text-primary" : "text-foreground"
+            }
             strokeWidth={pathname === "/notifications" ? 2.5 : 2}
           />
           {unreadNotificationsCount > 0 && (
@@ -47,4 +48,3 @@ export const Header = ({ title, action, className }: HeaderProps) => {
     </header>
   );
 };
-```
