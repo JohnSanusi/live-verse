@@ -301,18 +301,34 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const searchUsers = useCallback(
     async (query: string): Promise<User[]> => {
-      const { data, error } = await supabase
+      console.log("[DIAG] Executing searchUsers:", {
+        query: query.trim(),
+        currentUserId: currentUser.id,
+        isAuthenticated,
+      });
+
+      const { data, error, status, statusText } = await supabase
         .from("profiles")
         .select("*")
         .or(`name.ilike.%${query.trim()}%,handle.ilike.%${query.trim()}%`)
         .limit(20);
 
       if (error) {
-        console.error("Search failed:", error);
+        console.error("[DIAG] searchUsers FAILED:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          status,
+          statusText,
+        });
         return [];
       }
 
-      console.log("searchUsers found", data?.length || 0, "results.");
+      console.log("[DIAG] searchUsers SUCCESS:", {
+        count: data?.length || 0,
+        ids: data?.map((d: any) => d.id),
+      });
 
       const { data: myFollows } = await supabase
         .from("follows")
@@ -912,18 +928,41 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (data.coverPhoto !== undefined)
         profileUpdate.cover_url = data.coverPhoto;
 
-      const { data: updateData, error } = await supabase
+      console.log("[DIAG] Attempting profile update:", {
+        userId: currentUser.id,
+        payload: profileUpdate,
+      });
+
+      const {
+        data: updateData,
+        error,
+        count,
+        status,
+        statusText,
+      } = await supabase
         .from("profiles")
         .update(profileUpdate)
         .eq("id", currentUser.id)
         .select();
 
       if (error) {
-        console.error("Profile update failed:", error);
+        console.error("[DIAG] updateProfile FAILED:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          status,
+          statusText,
+        });
         throw error;
       }
 
+      console.log("[DIAG] updateProfile SUCCESS:", {
+        count: updateData?.length || 0,
+        returnedData: updateData,
+      });
+
       if (!updateData || updateData.length === 0) {
+        console.warn("[DIAG] updateProfile 0 ROWS MODIFIED");
         throw new Error("No rows modified. Check RLS or existence.");
       }
 
@@ -946,6 +985,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const uploadFile = async (bucket: string, file: File) => {
+    console.log("[DIAG] Starting uploadFile:", {
+      bucket,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      currentUserId: currentUser.id,
+    });
+
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `${Math.random()}.${fileExt}`;
@@ -956,15 +1003,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         .upload(filePath, file);
 
       if (uploadError) {
+        console.error("[DIAG] uploadFile STORAGE ERROR:", {
+          message: uploadError.message,
+          name: uploadError.name,
+          bucket,
+          filePath,
+        });
         throw uploadError;
       }
+
+      console.log("[DIAG] uploadFile STORAGE SUCCESS:", data);
 
       const { data: urlData } = supabase.storage
         .from(bucket)
         .getPublicUrl(filePath);
+      console.log("[DIAG] uploadFile PUBLIC URL:", urlData.publicUrl);
       return urlData.publicUrl;
     } catch (error: any) {
-      console.error("Upload error:", error);
+      console.error("[DIAG] uploadFile CATCH ERROR:", {
+        bucket,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
       return null;
     }
   };
