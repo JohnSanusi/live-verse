@@ -301,26 +301,34 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const searchUsers = useCallback(
     async (query: string): Promise<User[]> => {
-      if (!query.trim()) return [];
+      console.log("[DIAG] Executing searchUsers:", {
+        query: query.trim(),
+        currentUserId: currentUser.id,
+        isAuthenticated
+      });
 
-      console.log("Executing searchUsers with query:", query);
-      const { data, error } = await supabase
+      const { data, error, status, statusText } = await supabase
         .from("profiles")
         .select("*")
         .or(`name.ilike.%${query.trim()}%,handle.ilike.%${query.trim()}%`)
         .limit(20);
 
       if (error) {
-        console.error(
-          "Error searching users:",
-          error.message,
-          error.details,
-          error.hint
-        );
+        console.error("[DIAG] searchUsers FAILED:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          status,
+          statusText
+        });
         return [];
       }
 
-      console.log("searchUsers found", data?.length || 0, "results.");
+      console.log("[DIAG] searchUsers SUCCESS:", {
+        count: data?.length || 0,
+        ids: data?.map((d: any) => d.id)
+      });
 
       const { data: myFollows } = await supabase
         .from("follows")
@@ -920,43 +928,43 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (data.coverPhoto !== undefined)
         profileUpdate.cover_url = data.coverPhoto;
 
-      console.log(
-        "Attempting profile update for user:",
-        currentUser.id,
-        "Data:",
-        profileUpdate
-      );
+      console.log("[DIAG] Attempting profile update:", {
+        userId: currentUser.id,
+        payload: profileUpdate
+      });
 
       const {
         data: updateData,
         error,
         count,
+        status,
+        statusText
       } = await supabase
         .from("profiles")
         .update(profileUpdate)
         .eq("id", currentUser.id)
         .select();
 
-      console.log(
-        "Supabase response - Data:",
-        updateData,
-        "Error:",
-        error,
-        "Count:",
-        count
-      );
-
       if (error) {
-        console.error(
-          "Supabase Error detailing profile update failure:",
-          error.message,
-          error.details,
-          error.hint
-        );
+        console.error("[DIAG] updateProfile FAILED:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          status,
+          statusText
+        });
         throw error;
       }
 
+      console.log("[DIAG] updateProfile SUCCESS:", {
+        count: updateData?.length || 0,
+        returnedData: updateData
+      });
+
       if (!updateData || updateData.length === 0) {
+        console.warn("[DIAG] updateProfile 0 ROWS MODIFIED");
+        throw new Error("No rows modified. Check RLS or existence.");
+      }
         console.warn(
           "No rows updated. This usually means the RLS policy is blocking the update or the user ID doesn't exist in 'profiles'."
         );
@@ -984,25 +992,41 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const uploadFile = async (bucket: string, file: File) => {
+    console.log("[DIAG] Starting uploadFile:", {
+      bucket,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      currentUserId: currentUser.id
+    });
+
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `${currentUser.id}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { data, error: uploadError } = await supabase.storage
         .from(bucket)
         .upload(filePath, file);
 
       if (uploadError) {
+        console.error("[DIAG] uploadFile STORAGE ERROR:", {
+          message: uploadError.message,
+          name: uploadError.name,
+          bucket,
+          filePath
+        });
         throw uploadError;
       }
 
-      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-      return data.publicUrl;
+      console.log("[DIAG] uploadFile STORAGE SUCCESS:", data);
+
+      const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(filePath);
+      console.log("[DIAG] uploadFile PUBLIC URL:", urlData.publicUrl);
+      return urlData.publicUrl;
     } catch (error: any) {
-      console.error("Upload Error Details:", {
+      console.error("[DIAG] uploadFile CATCH ERROR:", {
         bucket,
-        fileName: file.name,
         message: error.message,
         details: error.details,
         hint: error.hint,
