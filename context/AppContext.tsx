@@ -826,15 +826,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const fetchUserProfile = async (authUser: any) => {
     try {
       // Fetch full profile from DB
-      const { data: profile } = await supabase
+      const { data: dbProfile } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", authUser.id)
         .single();
 
-      let userProfile = profile;
+      let userProfile = dbProfile;
 
-      if (!profile) {
+      if (!dbProfile) {
         const { data: newProfile, error: createError } = await supabase
           .from("profiles")
           .insert({
