@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/Button";
 import { useApp } from "@/context/AppContext";
 import { FeedCreator } from "@/components/FeedCreator";
 import { AnimatePresence } from "framer-motion";
+import { PostSkeleton } from "@/components/ui/Skeleton";
 
 export default function FeedsPage() {
-  const { feeds, toggleLike, addComment, createPost } = useApp();
+  const { feeds, toggleLike, addComment, createPost, isLoading } = useApp();
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [postText, setPostText] = useState("");
   const [postImage, setPostImage] = useState("");
@@ -51,14 +52,22 @@ export default function FeedsPage() {
       </AnimatePresence>
 
       <main className="space-y-4">
-        {feeds.map((feed) => (
-          <FeedItem
-            key={feed.id}
-            {...feed}
-            onLike={() => toggleLike(feed.id)}
-            onComment={(text) => addComment(feed.id, text)}
-          />
-        ))}
+        {isLoading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <PostSkeleton key={i} />
+            ))}
+          </div>
+        ) : (
+          feeds.map((feed) => (
+            <FeedItem
+              key={feed.id}
+              {...feed}
+              onLike={(reaction) => toggleLike(feed.id, "post", reaction)}
+              onComment={(text) => addComment(feed.id, text)}
+            />
+          ))
+        )}
       </main>
     </div>
   );

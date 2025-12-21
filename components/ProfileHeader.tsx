@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Settings, Edit2, Check, X, Camera } from "lucide-react";
+import { Settings, Check, X, Camera, Loader2 } from "lucide-react";
 import { User, useApp } from "@/context/AppContext";
 import { EliteBadge } from "./EliteBadge";
+import { useToast } from "@/components/ui/Toast";
 
 interface ProfileHeaderProps {
   user: User;
@@ -19,7 +20,12 @@ export const ProfileHeader = ({
   onFollowToggle,
 }: ProfileHeaderProps) => {
   const { updateProfile, toggleFollow, uploadFile } = useApp();
+  const { showToast } = useToast();
   const [isEditing, setIsEditing] = useState(autoEdit);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+
   const [editName, setEditName] = useState(user.name);
   const [editBio, setEditBio] = useState(user.bio);
 
@@ -36,13 +42,37 @@ export const ProfileHeader = ({
   }, [user, isEditing]);
 
   const handleSave = async () => {
-    await updateProfile({
-      name: editName,
-      bio: editBio,
-      avatar: editAvatar,
-      coverPhoto: editCover,
+    setIsSaving(true);
+    console.log("handleSave triggered. Current state:", {
+      editName,
+      editBio,
+      editAvatar,
+      editCover,
     });
-    setIsEditing(false);
+    try {
+      const result = await updateProfile({
+        name: editName,
+        bio: editBio,
+        avatar: editAvatar,
+        coverPhoto: editCover,
+      });
+      console.log("Profile update result:", result);
+      showToast("Profile updated successfully!", "success");
+      setIsEditing(false);
+    } catch (error: any) {
+      console.error("Profile update failed in handleSave:", error);
+      const errorMessage = error.message || "Failed to update profile";
+      showToast(errorMessage, "error");
+
+      // If it's a known RLS/DB issue, provide more context in a second toast or log
+      if (errorMessage.includes("No rows modified")) {
+        console.info(
+          "TIP: If you see 'No rows modified', ensure you've run the SQL commands in database_fix.sql in your Supabase SQL Editor."
+        );
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleMediaUpload = async (
@@ -51,18 +81,35 @@ export const ProfileHeader = ({
   ) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Upload to Supabase Storage
-      const bucket = "avatars"; // Use a single bucket for profile media for now
-      const uploadedUrl = await uploadFile(bucket, file);
+      if (type === "avatar") setIsUploadingAvatar(true);
+      else setIsUploadingCover(true);
 
-      if (uploadedUrl) {
-        if (type === "avatar") setEditAvatar(uploadedUrl);
-        else setEditCover(uploadedUrl);
+      try {
+        // Upload to Supabase Storage
+        const bucket = "avatars";
+        const uploadedUrl = await uploadFile(bucket, file);
+
+        if (uploadedUrl) {
+          if (type === "avatar") setEditAvatar(uploadedUrl);
+          else setEditCover(uploadedUrl);
+          showToast(
+            `${type.charAt(0).toUpperCase() + type.slice(1)} uploaded!`,
+            "success"
+          );
+        } else {
+          showToast(`Failed to upload ${type}`, "error");
+        }
+      } catch (error) {
+        showToast(`Error uploading ${type}`, "error");
+      } finally {
+        if (type === "avatar") setIsUploadingAvatar(false);
+        else setIsUploadingCover(false);
       }
     }
   };
 
   const handleCancel = () => {
+    if (isSaving) return;
     setEditName(user.name);
     setEditBio(user.bio);
     setIsEditing(false);
@@ -83,8 +130,13 @@ export const ProfileHeader = ({
           <button
             className="absolute inset-0 bg-black/40 flex items-center justify-center text-white"
             onClick={() => document.getElementById("cover-upload")?.click()}
+            disabled={isUploadingCover}
           >
-            <Camera size={24} />
+            {isUploadingCover ? (
+              <Loader2 className="animate-spin" size={24} />
+            ) : (
+              <Camera size={24} />
+            )}
             <input
               type="file"
               id="cover-upload"
@@ -116,8 +168,13 @@ export const ProfileHeader = ({
                 onClick={() =>
                   document.getElementById("avatar-upload")?.click()
                 }
+                disabled={isUploadingAvatar}
               >
-                <Camera size={20} />
+                {isUploadingAvatar ? (
+                  <Loader2 className="animate-spin" size={20} />
+                ) : (
+                  <Camera size={20} />
+                )}
                 <input
                   type="file"
                   id="avatar-upload"
@@ -139,14 +196,20 @@ export const ProfileHeader = ({
                     size="sm"
                     className="h-9 w-9 p-0 rounded-full bg-green-500/10 text-green-500 hover:bg-green-500/20"
                     onClick={handleSave}
+                    disabled={isSaving}
                   >
-                    <Check size={20} />
+                    {isSaving ? (
+                      <Loader2 className="animate-spin" size={20} />
+                    ) : (
+                      <Check size={20} />
+                    )}
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-9 w-9 p-0 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500/20"
                     onClick={handleCancel}
+                    disabled={isSaving}
                   >
                     <X size={20} />
                   </Button>

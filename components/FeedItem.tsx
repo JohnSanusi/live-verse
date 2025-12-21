@@ -1,7 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
-import { Heart, MessageCircle, Share2, Send } from "lucide-react";
+import {
+  Heart,
+  MessageCircle,
+  Share2,
+  Send,
+  Flame,
+  Star,
+  PartyPopper,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FeedPost, Comment } from "@/context/AppContext";
@@ -9,10 +16,13 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { EliteBadge } from "./EliteBadge";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react"; // Added useState import
 
 interface FeedItemProps extends FeedPost {
-  onLike: () => void;
+  onLike: (reaction?: "like" | "fire" | "wow" | "party") => void;
   onComment: (text: string) => void;
+  reaction?: "like" | "fire" | "wow" | "party"; // Added reaction prop
 }
 
 export const FeedItem = ({
@@ -24,11 +34,30 @@ export const FeedItem = ({
   commentsList,
   onLike,
   onComment,
+  reaction, // Destructured reaction prop
 }: FeedItemProps) => {
   const [showComments, setShowComments] = useState(false);
+  const [showReactions, setShowReactions] = useState(false); // Added showReactions state
   const [commentText, setCommentText] = useState("");
   const { toggleCommentLike } = useApp();
   const { showToast } = useToast();
+
+  // Added reactions array
+  const reactions = [
+    { id: "like", icon: Heart, color: "text-red-500", label: "Care" },
+    { id: "fire", icon: Flame, color: "text-orange-500", label: "Fire" },
+    { id: "wow", icon: Star, color: "text-yellow-500", label: "Wow" },
+    {
+      id: "party",
+      icon: PartyPopper,
+      color: "text-purple-500",
+      label: "Party",
+    },
+  ] as const;
+
+  // Added activeReaction and ActiveIcon logic
+  const activeReaction = reactions.find((r) => r.id === reaction);
+  const ActiveIcon = activeReaction?.icon || Heart;
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +73,13 @@ export const FeedItem = ({
   };
 
   return (
-    <div className="bg-card border-b border-border">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.4 }}
+      className="bg-card border-b border-border"
+    >
       {/* Header */}
       <div className="flex items-center gap-3 p-4">
         <Link
@@ -96,24 +131,69 @@ export const FeedItem = ({
         </div>
       )}
 
-      <div className="p-4 flex items-center justify-between">
+      <div className="p-4 flex items-center justify-between relative">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`gap-2 px-2 ${
-              liked
-                ? "text-red-500 hover:text-red-600"
-                : "hover:text-primary hover:bg-primary/10"
-            }`}
-            onClick={() => {
-              onLike();
-              if (!liked) showToast("Liked post!", "success");
-            }}
-          >
-            <Heart size={18} fill={liked ? "currentColor" : "none"} />
-            <span className="text-xs font-medium">{stats.likes}</span>
-          </Button>
+          <div className="relative">
+            <AnimatePresence>
+              {showReactions && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.9, x: "-50%" }}
+                  animate={{ opacity: 1, y: -50, scale: 1, x: "-50%" }}
+                  exit={{ opacity: 0, y: 10, scale: 0.9, x: "-50%" }}
+                  className="absolute left-1/2 bottom-full mb-2 bg-background/80 backdrop-blur-xl border border-border rounded-full p-1.5 flex gap-1 shadow-2xl z-50 ring-1 ring-white/10"
+                  onMouseLeave={() => setShowReactions(false)}
+                >
+                  {reactions.map((r) => (
+                    <button
+                      key={r.id}
+                      className={`h-10 w-10 rounded-full flex items-center justify-center hover:bg-primary/10 transition-all active:scale-90 group ${
+                        reaction === r.id ? "bg-primary/10" : ""
+                      }`}
+                      onClick={() => {
+                        onLike(r.id);
+                        setShowReactions(false);
+                      }}
+                    >
+                      <r.icon
+                        size={20}
+                        className={
+                          r.id === reaction
+                            ? r.color
+                            : "text-muted-foreground group-hover:text-primary"
+                        }
+                        fill={reaction === r.id ? "currentColor" : "none"}
+                      />
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`gap-2 px-2 transition-all duration-300 ${
+                liked
+                  ? `${
+                      activeReaction?.color || "text-primary"
+                    } hover:opacity-80`
+                  : "hover:text-primary hover:bg-primary/10"
+              }`}
+              onMouseEnter={() => setShowReactions(true)}
+              onClick={() => {
+                if (liked) onLike(reaction); // Unlike
+                else onLike("like");
+              }}
+            >
+              <ActiveIcon
+                size={18}
+                fill={liked ? "currentColor" : "none"}
+                className={liked ? "scale-110" : ""}
+              />
+              <span className="text-xs font-bold">{stats.likes}</span>
+            </Button>
+          </div>
+
           <Button
             variant="ghost"
             size="sm"
@@ -121,7 +201,7 @@ export const FeedItem = ({
             onClick={() => setShowComments(!showComments)}
           >
             <MessageCircle size={18} />
-            <span className="text-xs font-medium">{stats.comments}</span>
+            <span className="text-xs font-bold">{stats.comments}</span>
           </Button>
         </div>
         <Button
@@ -214,6 +294,6 @@ export const FeedItem = ({
           </form>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };

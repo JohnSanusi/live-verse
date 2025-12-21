@@ -16,9 +16,11 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/ui/Toast";
 import { Switch } from "@/components/ui/Switch";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function SettingsPage() {
-  const { currentUser, logout, settings, updateSettings } = useApp();
+  const { currentUser, logout, settings, updateSettings, isLoading } = useApp();
   const { confirm, showToast } = useToast();
   const router = useRouter();
 
@@ -93,13 +95,39 @@ export default function SettingsPage() {
     },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="pb-20 min-h-screen bg-background">
+        <Header title="Settings" />
+        <main className="p-4 space-y-6 max-w-2xl mx-auto">
+          <div className="w-full bg-secondary/30 rounded-3xl p-5 flex items-center gap-4">
+            <Skeleton variant="circle" className="h-20 w-20" />
+            <div className="flex-1 space-y-2">
+              <Skeleton variant="text" className="h-6 w-1/3" />
+              <Skeleton variant="text" className="h-4 w-1/4" />
+            </div>
+          </div>
+          <div className="space-y-4">
+            <Skeleton variant="text" className="h-4 w-16 px-4" />
+            <div className="bg-secondary/20 rounded-[2rem] p-4 space-y-4">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="pb-20 min-h-screen bg-background">
       <Header title="Settings" />
 
       <main className="p-4 space-y-6 max-w-2xl mx-auto">
         {/* Profile Card */}
-        <button
+        <motion.button
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
           onClick={() => router.push(`/profile`)}
           className="w-full bg-secondary/30 rounded-3xl p-5 flex items-center gap-4 border border-border/50 hover:bg-secondary/50 transition-all active-scale"
         >
@@ -123,17 +151,23 @@ export default function SettingsPage() {
           <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
             <ChevronRight size={20} className="text-muted-foreground" />
           </div>
-        </button>
+        </motion.button>
 
         {/* Sections */}
-        {SETTINGS_SECTIONS.map((section) => (
-          <div key={section.title} className="space-y-3">
+        {SETTINGS_SECTIONS.map((section, sectionIdx) => (
+          <motion.div
+            key={section.title}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: sectionIdx * 0.1 }}
+            className="space-y-3"
+          >
             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] px-4">
               {section.title}
             </h3>
             <div className="bg-secondary/20 rounded-[2rem] border border-border/50 overflow-hidden backdrop-blur-sm">
               {section.items.map((item, idx) => (
-                <div
+                <button
                   key={item.label}
                   onClick={item.action}
                   className={`w-full flex items-center gap-4 p-5 hover:bg-primary/5 transition-all active:bg-primary/10 cursor-pointer ${
@@ -176,10 +210,10 @@ export default function SettingsPage() {
                       </div>
                     )}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
-          </div>
+          </motion.div>
         ))}
 
         {/* Logout Button (Mobile) */}

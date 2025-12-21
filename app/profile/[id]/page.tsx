@@ -8,19 +8,40 @@ import { Grid, List, Video, Play, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useApp, User, FeedPost } from "@/context/AppContext";
 import { supabase } from "@/lib/supabase";
-import { MessageCircle, Lock } from "lucide-react";
+import { MessageCircle, Lock, Camera } from "lucide-react";
+import { Skeleton, PostSkeleton } from "@/components/ui/Skeleton";
 
 export default function UserProfilePage() {
   const params = useParams();
   const userId = params.id as string;
-  const { currentUser, toggleLike, addComment, toggleFollow, createChat } =
-    useApp();
+  const {
+    currentUser,
+    toggleLike,
+    addComment,
+    toggleFollow,
+    createChat,
+    users,
+  } = useApp();
   const router = useRouter();
 
   const [user, setUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"posts" | "reels">("posts");
+
+  // Sync with global users state/currentUser for optimistic updates
+  useEffect(() => {
+    if (userId === currentUser.id) {
+      setUser(currentUser);
+      return;
+    }
+    const globalUser = users.find((u) => u.id === userId);
+    if (globalUser && user) {
+      setUser((prev) =>
+        prev ? { ...prev, isFriend: globalUser.isFriend } : null
+      );
+    }
+  }, [users, userId, currentUser]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -103,8 +124,30 @@ export default function UserProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen text-muted-foreground">
-        <Loader2 className="animate-spin" />
+      <div className="pb-20 min-h-screen bg-background">
+        <div className="h-48 w-full bg-muted/20 relative">
+          <Skeleton className="h-full w-full rounded-none" />
+          <div className="absolute -bottom-12 left-4">
+            <Skeleton
+              variant="circle"
+              className="h-24 w-24 border-4 border-background"
+            />
+          </div>
+        </div>
+        <div className="mt-16 px-4 space-y-4">
+          <Skeleton variant="text" className="h-6 w-1/3" />
+          <Skeleton variant="text" className="h-4 w-1/4" />
+          <Skeleton variant="text" className="h-4 w-full" />
+          <div className="flex gap-4 py-4">
+            <Skeleton className="h-10 flex-1" />
+            <Skeleton className="h-10 flex-1" />
+          </div>
+          <div className="space-y-4">
+            {[1, 2].map((i) => (
+              <PostSkeleton key={i} />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -118,21 +161,20 @@ export default function UserProfilePage() {
   }
 
   const handleFollowToggle = async () => {
-    console.log("handleFollowToggle called");
+    if (!user) return;
+    const currentlyFollowing = user.isFriend;
+    // Optimistic Update
+    setUser((prev) =>
+      prev ? { ...prev, isFriend: !currentlyFollowing } : null
+    );
+
     try {
       await toggleFollow(userId);
-      // Re-check follow status
-      const { data: follow, error } = await supabase
-        .from("follows")
-        .select("*")
-        .eq("follower_id", currentUser.id)
-        .eq("following_id", userId)
-        .single();
-
-      console.log("Follow status after toggle:", follow, "Error:", error);
-      setUser((prev) => (prev ? { ...prev, isFriend: !!follow } : null));
     } catch (error) {
       console.error("Error in handleFollowToggle:", error);
+      setUser((prev) =>
+        prev ? { ...prev, isFriend: currentlyFollowing } : null
+      );
     }
   };
 

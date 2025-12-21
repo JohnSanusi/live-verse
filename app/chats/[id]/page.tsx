@@ -11,6 +11,7 @@ import {
   Send,
   Paperclip,
   Mic,
+  X,
 } from "lucide-react";
 import { EliteBadge } from "@/components/EliteBadge";
 import { Button } from "@/components/ui/Button";
@@ -18,19 +19,25 @@ import { Input } from "@/components/ui/Input";
 import { MessageBubble } from "@/components/MessageBubble";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/ui/Toast";
+import { supabase } from "@/lib/supabase";
 
 export default function ChatDetailPage() {
   const params = useParams();
   const router = useRouter();
   const chatId = params.id as string;
-  const { chats, sendMessage, markChatAsRead } = useApp();
+  const { chats, sendMessage, markChatAsRead, typingUsers, setTyping } =
+    useApp();
   const { showToast, confirm } = useToast();
   const [text, setText] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showOptions, setShowOptions] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const chat = chats.find((c) => c.id === chatId);
+  const isSomeoneTyping = typingUsers[chatId];
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -38,36 +45,46 @@ export default function ChatDetailPage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [chat?.messages, isTyping]);
+  }, [chat?.messages, isSomeoneTyping, imagePreview]);
 
   useEffect(() => {
-    // Simulate typing indicator when entering chat
-    const timeout = setTimeout(() => {
-      setIsTyping(true);
-      setTimeout(() => setIsTyping(false), 3000);
-    }, 1000);
     markChatAsRead(chatId);
-    return () => clearTimeout(timeout);
-  }, [chatId, markChatAsRead]);
+
+    const channel = supabase.channel(`chat_type_${chatId}`, {
+      config: { broadcast: { self: false } },
+    });
+
+    channel
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
+        setTyping(chatId, payload.isTyping);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [chatId, markChatAsRead, setTyping]);
 
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (text.trim()) {
-      sendMessage(chatId, text);
+    if (text.trim() || imageFile) {
+      sendMessage(chatId, text, imageFile || undefined);
       setText("");
+      setImageFile(null);
+      setImagePreview(null);
+    }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
     }
   };
 
   const handleFileAttach = () => {
-    const mockFiles = [
-      "Project_Specs.pdf",
-      "Design_v2.fig",
-      "Screenshot.png",
-      "Meeting_Notes.docx",
-    ];
-    const randomFile = mockFiles[Math.floor(Math.random() * mockFiles.length)];
-    sendMessage(chatId, `📎 Sent a file: ${randomFile}`);
-    showToast("File attached!", "success");
+    fileInputRef.current?.click();
   };
 
   const handleCall = (type: "voice" | "video") => {
@@ -206,7 +223,7 @@ export default function ChatDetailPage() {
           <MessageBubble key={msg.id} message={msg} />
         ))}
 
-        {isTyping && (
+        {isSomeoneTyping && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -242,6 +259,40 @@ export default function ChatDetailPage() {
 
       {/* Input Area */}
       <div className="p-3 border-t border-border bg-background/80 backdrop-blur-lg">
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept="image/*"
+          onChange={handleImageSelect}
+        />
+
+        <AnimatePresence>
+          {imagePreview && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="mb-2 p-2 bg-secondary/30 rounded-xl border border-border flex items-center gap-2 relative group w-fit"
+            >
+              <img
+                src={imagePreview}
+                className="h-20 w-32 object-cover rounded-lg border border-border"
+              />
+              <button
+                type="button"
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg active:scale-90 transition-transform"
+                onClick={() => {
+                  setImageFile(null);
+                  setImagePreview(null);
+                }}
+              >
+                <X size={12} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <form onSubmit={handleSend} className="flex items-center gap-2">
           <Button
             type="button"
@@ -257,7 +308,25 @@ export default function ChatDetailPage() {
               placeholder="Type a message..."
               className="pr-10 rounded-full border-none bg-secondary/50 focus-visible:ring-1"
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value);
+                const channel = supabase.channel(`chat_type_${chatId}`);
+                channel.send({
+                  type: "broadcast",
+                  event: "typing",
+                  payload: { isTyping: true },
+                });
+
+                if (typingTimeoutRef.current)
+                  clearTimeout(typingTimeoutRef.current);
+                typingTimeoutRef.current = setTimeout(() => {
+                  channel.send({
+                    type: "broadcast",
+                    event: "typing",
+                    payload: { isTyping: false },
+                  });
+                }, 3000);
+              }}
             />
             <Button
               type="button"

@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Check, CheckCheck } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface MessageBubbleProps {
   message: {
@@ -11,6 +12,7 @@ interface MessageBubbleProps {
     isMe: boolean;
     status?: "sent" | "delivered" | "read";
     readTime?: string;
+    image?: string;
   };
 }
 
@@ -18,7 +20,10 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
   const { text, time, isMe, status, readTime } = message;
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, x: isMe ? 20 : -20, scale: 0.95 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
       className={`flex flex-col w-full ${
         isMe ? "items-end" : "items-start"
       } mb-4`}
@@ -30,6 +35,13 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
             : "bg-secondary text-secondary-foreground rounded-bl-none"
         }`}
       >
+        {message.image && (
+          <img
+            src={message.image}
+            alt="Sent image"
+            className="rounded-xl mb-2 max-h-60 w-full object-cover border border-white/10"
+          />
+        )}
         <p className="text-sm">{text}</p>
         <p
           className={`text-[10px] mt-1 text-right ${
@@ -55,6 +67,6 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };

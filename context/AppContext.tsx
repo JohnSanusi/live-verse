@@ -49,6 +49,7 @@ export interface FeedPost {
     comments: number;
   };
   liked: boolean;
+  reaction?: "like" | "fire" | "wow" | "party";
   commentsList: Comment[];
 }
 
@@ -59,6 +60,7 @@ export interface Message {
   isMe: boolean;
   status?: "sent" | "delivered" | "read";
   readTime?: string;
+  image?: string;
 }
 
 export interface Status {
@@ -123,12 +125,20 @@ interface AppContextType {
   statuses: Status[];
   isAuthenticated: boolean;
   isLoading: boolean;
-  updateProfile: (data: Partial<User>) => Promise<void>;
-  toggleLike: (targetId: string, targetType?: "post" | "reel") => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<boolean | void>;
+  toggleLike: (
+    targetId: string,
+    targetType?: "post" | "reel",
+    reaction?: "like" | "fire" | "wow" | "party"
+  ) => Promise<void>;
   addComment: (feedId: string, text: string) => Promise<void>;
   toggleCommentLike: (feedId: string, commentId: string) => void;
   verifyUser: (userId: string, status: boolean) => Promise<void>;
-  sendMessage: (chatId: string, text: string) => void;
+  sendMessage: (
+    chat_id: string,
+    text: string,
+    media?: File | string
+  ) => Promise<void>;
   addFile: () => void;
   toggleFollow: (userId: string) => Promise<void>;
   addContact: (user: User) => void;
@@ -141,6 +151,8 @@ interface AppContextType {
   login: (email: string, password: string) => Promise<string | null>;
   signup: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
+  typingUsers: { [chatId: string]: boolean };
+  setTyping: (chatId: string, isTyping: boolean) => void;
   createPost: (text: string, media?: File | string) => Promise<void>;
   createReel: (caption: string, video: File | string) => Promise<void>;
   createMarketplaceItem: (
@@ -197,6 +209,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [reels, setReels] = useState<any[]>([]);
   const [marketplaceItems, setMarketplaceItems] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [typingUsers, setTypingUsers] = useState<{ [chatId: string]: boolean }>(
+    {}
+  );
+
+  const setTyping = useCallback((chatId: string, isTyping: boolean) => {
+    setTypingUsers((prev) => ({ ...prev, [chatId]: isTyping }));
+  }, []);
   const [followers, setFollowers] = useState<User[]>([]);
   const [following, setFollowing] = useState<User[]>([]);
   const [settings, setSettings] = useState<{
@@ -249,6 +268,85 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser]);
 
+  const fetchUsers = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .limit(10);
+
+    if (data && !error) {
+      const { data: myFollows } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", currentUser.id);
+
+      const followingIds = new Set(
+        myFollows?.map((f: any) => f.following_id) || []
+      );
+
+      setUsers(
+        data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          handle: p.handle,
+          avatar: p.avatar_url,
+          bio: p.bio,
+          stats: p.stats || { posts: 0, followers: 0, following: 0 },
+          isVerified: p.is_verified,
+          isFriend: followingIds.has(p.id),
+          status: "offline",
+        }))
+      );
+    }
+  }, [currentUser.id]);
+
+  const searchUsers = useCallback(
+    async (query: string): Promise<User[]> => {
+      if (!query.trim()) return [];
+
+      console.log("Executing searchUsers with query:", query);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .or(`name.ilike.%${query.trim()}%,handle.ilike.%${query.trim()}%`)
+        .limit(20);
+
+      if (error) {
+        console.error(
+          "Error searching users:",
+          error.message,
+          error.details,
+          error.hint
+        );
+        return [];
+      }
+
+      console.log("searchUsers found", data?.length || 0, "results.");
+
+      const { data: myFollows } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", currentUser.id);
+
+      const followingIds = new Set(
+        myFollows?.map((f: any) => f.following_id) || []
+      );
+
+      return data.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        handle: p.handle,
+        avatar: p.avatar_url,
+        bio: p.bio,
+        stats: p.stats || { posts: 0, followers: 0, following: 0 },
+        isVerified: p.is_verified,
+        isFriend: followingIds.has(p.id),
+        status: "offline",
+      }));
+    },
+    [currentUser.id]
+  );
+
   const fetchChats = useCallback(async () => {
     if (!currentUser.id) return;
 
@@ -296,6 +394,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               messages: (c.messages || []).map((m: any) => ({
                 id: m.id,
                 text: m.text,
+                image: m.image_url,
                 time: new Date(m.created_at).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -459,6 +558,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setStatuses(activeStatuses);
       }
 
+      // Fetch Initial Users for suggestions
+      await fetchUsers();
+
       // Fetch Chats via standalone function
       await fetchChats();
     };
@@ -466,67 +568,107 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (isAuthenticated) {
       fetchData();
     }
-  }, [isAuthenticated, currentUser.id, fetchChats]);
+  }, [isAuthenticated, currentUser.id, fetchChats, fetchUsers]);
 
   const toggleLike = useCallback(
-    async (targetId: string, targetType: "post" | "reel" = "post") => {
-      // Check if liked
-      const { data: existingLike } = await supabase
-        .from("likes")
-        .select("*")
-        .eq("user_id", currentUser.id)
-        .eq("target_id", targetId)
-        .eq("target_type", targetType)
-        .single();
+    async (
+      targetId: string,
+      targetType: "post" | "reel" = "post",
+      reaction: "like" | "fire" | "wow" | "party" = "like"
+    ) => {
+      // Optimistic Update
+      const updateLocalState = (isLiked: boolean, react?: any) => {
+        if (targetType === "post") {
+          setFeeds((prev) =>
+            prev.map((post) =>
+              post.id === targetId
+                ? {
+                    ...post,
+                    liked: isLiked,
+                    reaction: isLiked ? react : undefined,
+                    stats: {
+                      ...post.stats,
+                      likes: post.stats.likes + (isLiked ? 1 : -1),
+                    },
+                  }
+                : post
+            )
+          );
+        } else {
+          setReels((prev) =>
+            prev.map((reel) =>
+              reel.id === targetId
+                ? {
+                    ...reel,
+                    liked: isLiked,
+                    stats: {
+                      ...reel.stats,
+                      likes: (reel.stats.likes || 0) + (isLiked ? 1 : -1),
+                    },
+                  }
+                : reel
+            )
+          );
+        }
+      };
 
-      if (existingLike) {
-        await supabase
+      // Find current state
+      const post = feeds.find((f) => f.id === targetId);
+      const reel = reels.find((r) => r.id === targetId);
+      const currentlyLiked = targetType === "post" ? post?.liked : reel?.liked;
+      const currentReaction = post?.reaction;
+
+      // If already liked with DIFFERENT reaction, change it
+      // If already liked with SAME reaction, unlike it
+      const isSameReaction = currentReaction === reaction;
+      const nextLikedState = currentlyLiked ? !isSameReaction : true;
+      const nextReaction = reaction;
+
+      updateLocalState(nextLikedState, nextReaction);
+
+      try {
+        const { data: existingLike } = await supabase
           .from("likes")
-          .delete()
+          .select("*")
           .eq("user_id", currentUser.id)
           .eq("target_id", targetId)
-          .eq("target_type", targetType);
-      } else {
-        await supabase.from("likes").insert({
-          user_id: currentUser.id,
-          target_id: targetId,
-          target_type: targetType,
-        });
-      }
+          .eq("target_type", targetType)
+          .single();
 
-      if (targetType === "post") {
-        setFeeds((prev) =>
-          prev.map((post) =>
-            post.id === targetId
-              ? {
-                  ...post,
-                  liked: !post.liked,
-                  stats: {
-                    ...post.stats,
-                    likes: post.stats.likes + (post.liked ? -1 : 1),
-                  },
-                }
-              : post
-          )
-        );
-      } else {
-        setReels((prev) =>
-          prev.map((reel) =>
-            reel.id === targetId
-              ? {
-                  ...reel,
-                  liked: !reel.liked,
-                  stats: {
-                    ...reel.stats,
-                    likes: (reel.stats.likes || 0) + (reel.liked ? -1 : 1),
-                  },
-                }
-              : reel
-          )
-        );
+        if (existingLike) {
+          if (isSameReaction) {
+            const { error } = await supabase
+              .from("likes")
+              .delete()
+              .eq("user_id", currentUser.id)
+              .eq("target_id", targetId)
+              .eq("target_type", targetType);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase
+              .from("likes")
+              .update({ reaction }) // We might need to add this column to 'likes' table
+              .eq("user_id", currentUser.id)
+              .eq("target_id", targetId)
+              .eq("target_type", targetType);
+            if (error) throw error;
+          }
+        } else {
+          const { error } = await supabase.from("likes").insert({
+            user_id: currentUser.id,
+            target_id: targetId,
+            target_type: targetType,
+            reaction,
+          });
+          if (error) throw error;
+        }
+      } catch (error) {
+        console.error("Error toggling like:", error);
+        // Rollback
+        updateLocalState(currentlyLiked!, currentReaction);
       }
     },
-    [currentUser.id]
+    [currentUser.id, feeds, reels]
   );
 
   // Supabase Auth Listener
@@ -762,18 +904,88 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (data.coverPhoto !== undefined)
         profileUpdate.cover_url = data.coverPhoto;
 
-      const { error } = await supabase
+      console.log(
+        "Attempting profile update for user:",
+        currentUser.id,
+        "Data:",
+        profileUpdate
+      );
+
+      const {
+        data: updateData,
+        error,
+        count,
+      } = await supabase
         .from("profiles")
         .update(profileUpdate)
-        .eq("id", currentUser.id);
+        .eq("id", currentUser.id)
+        .select();
 
-      if (error) throw error;
+      console.log(
+        "Supabase response - Data:",
+        updateData,
+        "Error:",
+        error,
+        "Count:",
+        count
+      );
+
+      if (error) {
+        console.error(
+          "Supabase Error detailing profile update failure:",
+          error.message,
+          error.details,
+          error.hint
+        );
+        throw error;
+      }
+
+      if (!updateData || updateData.length === 0) {
+        console.warn(
+          "No rows updated. This usually means the RLS policy is blocking the update or the user ID doesn't exist in 'profiles'."
+        );
+        throw new Error(
+          "Profile update failed: No rows modified. Check RLS policies."
+        );
+      }
 
       const updated = { ...currentUser, ...data };
       setCurrentUser(updated);
-      // localStorage is updated via the useEffect on currentUser
+
+      // Update the user in the global users list as well
+      setUsers((prev) =>
+        prev.map((u) => (u.id === currentUser.id ? { ...u, ...data } : u))
+      );
+
+      // Persist to localStorage
+      localStorage.setItem("currentUser", JSON.stringify(updated));
+
+      return true;
     } catch (error) {
       console.error("Error updating profile:", error);
+      throw error;
+    }
+  };
+
+  const uploadFile = async (bucket: string, file: File) => {
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${currentUser.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+      return data.publicUrl;
+    } catch (error) {
+      console.error("Upload error:", error);
+      return null;
     }
   };
 
@@ -896,30 +1108,67 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const addComment = useCallback(
     async (feedId: string, text: string) => {
-      const { data, error } = await supabase
-        .from("comments")
-        .insert({
-          user_id: currentUser.id,
-          post_id: feedId,
-          text,
-        })
-        .select()
-        .single();
+      const tempId = `temp-${Math.random()}`;
+      const optimisticComment: Comment = {
+        id: tempId,
+        user: currentUser,
+        text,
+        time: "Just now",
+      };
 
-      if (data) {
+      setFeeds((prev) =>
+        prev.map((post) => {
+          if (post.id.toString() === feedId.toString()) {
+            return {
+              ...post,
+              stats: { ...post.stats, comments: post.stats.comments + 1 },
+              commentsList: [...post.commentsList, optimisticComment],
+            };
+          }
+          return post;
+        })
+      );
+
+      try {
+        const { data, error } = await supabase
+          .from("comments")
+          .insert({
+            user_id: currentUser.id,
+            post_id: feedId,
+            text,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          setFeeds((prev) =>
+            prev.map((post) => {
+              if (post.id.toString() === feedId.toString()) {
+                return {
+                  ...post,
+                  commentsList: post.commentsList.map((c) =>
+                    c.id === tempId ? { ...c, id: data.id } : c
+                  ),
+                };
+              }
+              return post;
+            })
+          );
+        }
+      } catch (error) {
+        console.error("Error adding comment:", error);
         setFeeds((prev) =>
           prev.map((post) => {
             if (post.id.toString() === feedId.toString()) {
-              const newComment: Comment = {
-                id: data.id,
-                user: currentUser,
-                text,
-                time: "Just now",
-              };
               return {
                 ...post,
-                stats: { ...post.stats, comments: post.stats.comments + 1 },
-                commentsList: [...post.commentsList, newComment],
+                stats: {
+                  ...post.stats,
+                  comments: Math.max(0, post.stats.comments - 1),
+                },
+                commentsList: post.commentsList.filter((c) => c.id !== tempId),
               };
             }
             return post;
@@ -931,24 +1180,90 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const sendMessage = useCallback(
-    async (chatId: string, text: string) => {
-      const { data, error } = await supabase
-        .from("messages")
-        .insert({
-          chat_id: chatId,
-          sender_id: currentUser.id,
-          text,
-        })
-        .select()
-        .single();
+    async (chatId: string, text: string, media?: File | string) => {
+      const tempId = `temp-${Math.random()}`;
+      const optimisticMsg: Message = {
+        id: tempId,
+        text,
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        isMe: true,
+        status: "sent",
+        image:
+          media instanceof File
+            ? URL.createObjectURL(media)
+            : typeof media === "string"
+            ? media
+            : undefined,
+      };
 
-      if (error) {
-        console.error("Error sending message:", error.message);
-        return;
+      // Update chats locally
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                messages: [...chat.messages, optimisticMsg],
+                lastMessage: { text: text || "Image", time: "Just now" },
+              }
+            : chat
+        )
+      );
+
+      try {
+        let mediaUrl = "";
+        if (media instanceof File) {
+          const uploaded = await uploadFile("messages", media);
+          if (uploaded) mediaUrl = uploaded;
+        } else if (typeof media === "string") {
+          mediaUrl = media;
+        }
+
+        const { data, error } = await supabase
+          .from("messages")
+          .insert({
+            chat_id: chatId,
+            sender_id: currentUser.id,
+            text,
+            image_url: mediaUrl,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          setChats((prev) =>
+            prev.map((chat) =>
+              chat.id === chatId
+                ? {
+                    ...chat,
+                    messages: chat.messages.map((m) =>
+                      m.id === tempId
+                        ? { ...m, id: data.id, image: mediaUrl }
+                        : m
+                    ),
+                  }
+                : chat
+            )
+          );
+        }
+      } catch (error) {
+        console.error("Error sending message:", error);
+        // Rollback
+        setChats((prev) =>
+          prev.map((chat) =>
+            chat.id === chatId
+              ? {
+                  ...chat,
+                  messages: chat.messages.filter((m) => m.id !== tempId),
+                }
+              : chat
+          )
+        );
       }
-
-      // Optimistically update is handled by the real-time listener or we can add it here too
-      // For now, we rely on the real-time listener to avoid duplicates
     },
     [currentUser.id]
   );
@@ -1206,42 +1521,45 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const toggleFollow = useCallback(
     async (userId: string) => {
-      console.log("toggleFollow called for userId:", userId);
-      console.log("Current user ID:", currentUser?.id);
+      if (!currentUser?.id) return;
 
-      if (!currentUser?.id) {
-        console.error("Cannot follow: No authenticated user");
-        return;
-      }
+      // Optimistic Update
+      const updateLocalState = (isFollowing: boolean) => {
+        setUsers((prev) =>
+          prev.map((u) =>
+            u.id === userId ? { ...u, isFriend: isFollowing } : u
+          )
+        );
+      };
 
-      // Check if following
-      const { data: existingFollow, error: checkError } = await supabase
-        .from("follows")
-        .select("*")
-        .eq("follower_id", currentUser.id)
-        .eq("following_id", userId)
-        .single();
+      const user = users.find((u) => u.id === userId);
+      const currentlyFollowing = user?.isFriend;
+      const nextFollowingState = !currentlyFollowing;
 
-      console.log("Existing follow:", existingFollow, "Error:", checkError);
+      updateLocalState(nextFollowingState);
 
-      if (existingFollow) {
-        const { error: deleteError } = await supabase
+      try {
+        const { data: existingFollow } = await supabase
           .from("follows")
-          .delete()
+          .select("*")
           .eq("follower_id", currentUser.id)
-          .eq("following_id", userId);
+          .eq("following_id", userId)
+          .single();
 
-        console.log("Unfollow result - Error:", deleteError);
-      } else {
-        const { error: insertError } = await supabase.from("follows").insert({
-          follower_id: currentUser.id,
-          following_id: userId,
-        });
+        if (existingFollow) {
+          const { error } = await supabase
+            .from("follows")
+            .delete()
+            .eq("follower_id", currentUser.id)
+            .eq("following_id", userId);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("follows").insert({
+            follower_id: currentUser.id,
+            following_id: userId,
+          });
+          if (error) throw error;
 
-        console.log("Follow result - Error:", insertError);
-
-        // Create notification for the followed user
-        if (!insertError) {
           await supabase.from("notifications").insert({
             user_id: userId,
             type: "follow",
@@ -1249,22 +1567,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             read: false,
           });
         }
+
+        await fetchFollowLists();
+        const {
+          data: { user: authUser },
+        } = await supabase.auth.getUser();
+        if (authUser) await fetchUserProfile(authUser);
+      } catch (error) {
+        console.error("Error toggling follow:", error);
+        updateLocalState(currentlyFollowing!); // Rollback
       }
-
-      setUsers((prev) =>
-        prev.map((user) =>
-          user.id === userId ? { ...user, isFriend: !user.isFriend } : user
-        )
-      );
-
-      // Refresh follow lists and current user stats
-      await fetchFollowLists();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) await fetchUserProfile(user);
     },
-    [currentUser.id, fetchFollowLists, fetchUserProfile]
+    [currentUser.id, users, fetchFollowLists, fetchUserProfile]
   );
 
   const login = async (
@@ -1337,57 +1651,59 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const uploadFile = async (bucket: string, file: File) => {
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${Math.random()}.${fileExt}`;
-    const filePath = `${currentUser.id}/${fileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from(bucket)
-      .upload(filePath, file);
-
-    if (uploadError) {
-      console.error("Upload error:", uploadError.message);
-      return null;
-    }
-
-    const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-    return data.publicUrl;
-  };
-
   const createPost = async (text: string, media?: File | string) => {
-    let mediaUrl = "";
-    if (media instanceof File) {
-      const uploaded = await uploadFile("posts", media);
-      if (uploaded) mediaUrl = uploaded;
-    } else if (typeof media === "string") {
-      mediaUrl = media;
-    }
+    const tempId = `temp-${Math.random()}`;
+    const optimisticPost: FeedPost = {
+      id: tempId,
+      user: currentUser,
+      content: {
+        text,
+        image:
+          media instanceof File
+            ? URL.createObjectURL(media)
+            : typeof media === "string"
+            ? media
+            : undefined,
+      },
+      stats: { likes: 0, comments: 0 },
+      liked: false,
+      commentsList: [],
+    };
 
-    const { data, error } = await supabase
-      .from("posts")
-      .insert({
-        user_id: currentUser.id,
-        content: { text, image: mediaUrl },
-      })
-      .select()
-      .single();
+    setFeeds((prev) => [optimisticPost, ...prev]);
 
-    if (error) {
-      console.error("Error creating post:", error.message);
-      return;
-    }
+    try {
+      let mediaUrl = "";
+      if (media instanceof File) {
+        const uploaded = await uploadFile("posts", media);
+        if (uploaded) mediaUrl = uploaded;
+      } else if (typeof media === "string") {
+        mediaUrl = media;
+      }
 
-    if (data) {
-      const newPost: FeedPost = {
-        id: data.id,
-        user: currentUser,
-        content: { text, image: mediaUrl },
-        stats: { likes: 0, comments: 0 },
-        liked: false,
-        commentsList: [],
-      };
-      setFeeds((prev) => [newPost, ...prev]);
+      const { data, error } = await supabase
+        .from("posts")
+        .insert({
+          user_id: currentUser.id,
+          content: { text, image: mediaUrl },
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setFeeds((prev) =>
+          prev.map((p) =>
+            p.id === tempId
+              ? { ...p, id: data.id, content: { text, image: mediaUrl } }
+              : p
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error creating post:", error);
+      setFeeds((prev) => prev.filter((p) => p.id !== tempId));
     }
   };
 
@@ -1453,47 +1769,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (data) {
       setMarketplaceItems((prev) => [data, ...prev]);
     }
-  };
-
-  const searchUsers = async (query: string): Promise<User[]> => {
-    if (!query.trim()) return [];
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .or(`name.ilike.%${query.trim()}%,handle.ilike.%${query.trim()}%`)
-      .limit(20);
-
-    if (error) {
-      console.error("Error searching users:", error.message);
-      // NOTE: If this returns "new row violates row-level security policy" or returns empty,
-      // ensuring PROFILES table has generic SELECT policy is key:
-      // CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
-      return [];
-    }
-
-    console.log("Search results:", data); // Debug log to see what DB returns
-
-    const { data: myFollows } = await supabase
-      .from("follows")
-      .select("following_id")
-      .eq("follower_id", currentUser.id);
-
-    const followingIds = new Set(
-      myFollows?.map((f: any) => f.following_id) || []
-    );
-
-    return data.map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      handle: p.handle,
-      avatar: p.avatar_url,
-      bio: p.bio,
-      stats: p.stats || { posts: 0, followers: 0, following: 0 },
-      isVerified: p.is_verified,
-      isFriend: followingIds.has(p.id),
-      status: "offline",
-    }));
   };
 
   const fetchNotifications = async () => {
@@ -1649,6 +1924,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         login,
         signup,
         logout,
+        typingUsers,
+        setTyping,
         fetchChats,
         fetchFollowLists,
         fetchNotifications,
