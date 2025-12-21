@@ -128,8 +128,7 @@ interface AppContextType {
   updateProfile: (data: Partial<User>) => Promise<boolean | void>;
   toggleLike: (
     targetId: string,
-    targetType?: "post" | "reel",
-    reaction?: "like" | "fire" | "wow" | "party"
+    targetType?: "post" | "reel" | "status"
   ) => Promise<void>;
   addComment: (feedId: string, text: string) => Promise<void>;
   toggleCommentLike: (feedId: string, commentId: string) => void;
@@ -441,7 +440,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           *,
           profiles:user_id (id, name, avatar_url, handle, is_verified),
           likes (user_id),
-          comments (*)
+          comments (
+            id,
+            text,
+            created_at,
+            user_id,
+            profiles:user_id (id, name, avatar_url, handle, is_verified)
+          )
         `
         )
         .order("created_at", { ascending: false });
@@ -468,15 +473,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             commentsList: post.comments.map((c: any) => ({
               id: c.id,
               user: {
-                id: c.user_id,
-                name: "User",
-                avatar: "U",
-                handle: "user",
+                id: c.profiles.id,
+                name: c.profiles.name,
+                avatar: c.profiles.avatar_url,
+                handle: c.profiles.handle,
+                isVerified: c.profiles.is_verified,
                 bio: "",
                 stats: { posts: 0, followers: 0, following: 0 },
               },
               text: c.text,
-              time: "Recently",
+              time: new Date(c.created_at).toLocaleString(),
             })),
           }))
         );
@@ -585,11 +591,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const toggleLike = useCallback(
     async (
       targetId: string,
-      targetType: "post" | "reel" = "post",
-      reaction: "like" | "fire" | "wow" | "party" = "like"
+      targetType: "post" | "reel" | "status" = "post"
     ) => {
+      if (!currentUser?.id) {
+        console.warn("Cannot like: user not authenticated");
+        return;
+      }
+
       // Optimistic Update
-      const updateLocalState = (isLiked: boolean, react?: any) => {
+      const updateLocalState = (isLiked: boolean) => {
         if (targetType === "post") {
           setFeeds((prev) =>
             prev.map((post) =>
@@ -597,7 +607,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 ? {
                     ...post,
                     liked: isLiked,
-                    reaction: isLiked ? react : undefined,
                     stats: {
                       ...post.stats,
                       likes: post.stats.likes + (isLiked ? 1 : -1),
@@ -606,7 +615,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 : post
             )
           );
-        } else {
+        } else if (targetType === "reel") {
           setReels((prev) =>
             prev.map((reel) =>
               reel.id === targetId
@@ -621,22 +630,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 : reel
             )
           );
+        } else if (targetType === "status") {
+          setStatuses((prev) =>
+            prev.map((status) =>
+              status.id === targetId ? { ...status, liked: isLiked } : status
+            )
+          );
         }
       };
 
       // Find current state
       const post = feeds.find((f) => f.id === targetId);
       const reel = reels.find((r) => r.id === targetId);
-      const currentlyLiked = targetType === "post" ? post?.liked : reel?.liked;
-      const currentReaction = post?.reaction;
+      const currentlyLiked =
+        targetType === "post"
+          ? post?.liked
+          : targetType === "reel"
+          ? reel?.liked
+          : false;
 
-      // If already liked with DIFFERENT reaction, change it
-      // If already liked with SAME reaction, unlike it
-      const isSameReaction = currentReaction === reaction;
-      const nextLikedState = currentlyLiked ? !isSameReaction : true;
-      const nextReaction = reaction;
-
-      updateLocalState(nextLikedState, nextReaction);
+      const nextLikedState = !currentlyLiked;
+      updateLocalState(nextLikedState);
 
       try {
         const { data: existingLike } = await supabase
@@ -648,56 +662,42 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           .single();
 
         if (existingLike) {
-          if (isSameReaction) {
-            const { error } = await supabase
-              .from("likes")
-              .delete()
-              .eq("user_id", currentUser.id)
-              .eq("target_id", targetId)
-              .eq("target_type", targetType);
-            if (error) throw error;
-
-            // Notification for unfollow is rare, but user requested notifications for unfollows too
-            // However, usually we don't notify for "unlike".
-          } else {
-            const { error } = await supabase
-              .from("likes")
-              .update({ reaction })
-              .eq("user_id", currentUser.id)
-              .eq("target_id", targetId)
-              .eq("target_type", targetType);
-            if (error) throw error;
-
-            // Notify for reaction change
-            const targetOwnerId =
-              targetType === "post" ? post?.user.id : reel?.user.id;
-            if (targetOwnerId) {
-              await createNotification(targetOwnerId, "like", targetId);
-            }
-          }
+          // Unlike
+          const { error } = await supabase
+            .from("likes")
+            .delete()
+            .eq("user_id", currentUser.id)
+            .eq("target_id", targetId)
+            .eq("target_type", targetType);
+          if (error) throw error;
         } else {
+          // Like
           const { error } = await supabase.from("likes").insert({
             user_id: currentUser.id,
             target_id: targetId,
             target_type: targetType,
-            reaction,
           });
           if (error) throw error;
 
-          // Notification for like
+          // Send notification for like
           const targetOwnerId =
-            targetType === "post" ? post?.user.id : reel?.user.id;
-          if (targetOwnerId) {
+            targetType === "post"
+              ? post?.user.id
+              : targetType === "reel"
+              ? reel?.user.id
+              : statuses.find((s) => s.id === targetId)?.user.id;
+
+          if (targetOwnerId && targetOwnerId !== currentUser.id) {
             await createNotification(targetOwnerId, "like", targetId);
           }
         }
       } catch (error) {
         console.error("Error toggling like:", error);
         // Rollback
-        updateLocalState(currentlyLiked!, currentReaction);
+        updateLocalState(currentlyLiked!);
       }
     },
-    [currentUser.id, feeds, reels]
+    [currentUser.id, feeds, reels, statuses]
   );
 
   // Supabase Auth Listener
@@ -1328,29 +1328,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const addStatus = async (text: string, media?: File | string) => {
     let mediaUrl = "";
-    const mediaType = (
-      media instanceof File && media.type.startsWith("video")
-        ? "video"
-        : "image"
-    ) as "image" | "video";
+    let mediaType: "image" | "video" | "text" = "text";
 
     if (media instanceof File) {
+      mediaType = media.type.startsWith("video") ? "video" : "image";
       const uploaded = await uploadFile("statuses", media);
       if (uploaded) mediaUrl = uploaded;
     } else if (typeof media === "string") {
       mediaUrl = media;
+      mediaType = "image"; // Assume string URLs are images
     }
 
-    // Fallback for text-only status
-    if (!mediaUrl && text.trim()) {
-      mediaUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        text
-      )}&background=random&color=fff&size=512`;
+    // For text-only status (WhatsApp style)
+    if (!media && text.trim()) {
+      mediaType = "text";
+      mediaUrl = ""; // No media URL for text-only
     }
 
     const newItem: {
       id: string;
-      type: "image" | "video";
+      type: "image" | "video" | "text";
       url: string;
       duration: number;
       content?: string;
@@ -1670,16 +1667,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const createPost = async (text: string, media?: File | string) => {
     const tempId = `temp-${Math.random()}`;
+
+    // Determine if media is video or image
+    const isVideo = media instanceof File && media.type.startsWith("video/");
+
     const optimisticPost: FeedPost = {
       id: tempId,
       user: currentUser,
       content: {
         text,
         image:
-          media instanceof File
+          !isVideo && media instanceof File
             ? URL.createObjectURL(media)
-            : typeof media === "string"
+            : !isVideo && typeof media === "string"
             ? media
+            : undefined,
+        video:
+          isVideo && media instanceof File
+            ? URL.createObjectURL(media)
             : undefined,
       },
       stats: { likes: 0, comments: 0 },
@@ -1698,11 +1703,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         mediaUrl = media;
       }
 
+      const contentData: any = { text };
+      if (isVideo) {
+        contentData.video = mediaUrl;
+      } else if (mediaUrl) {
+        contentData.image = mediaUrl;
+      }
+
       const { data, error } = await supabase
         .from("posts")
         .insert({
           user_id: currentUser.id,
-          content: { text, image: mediaUrl },
+          content: contentData,
         })
         .select()
         .single();
@@ -1712,9 +1724,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (data) {
         setFeeds((prev) =>
           prev.map((p) =>
-            p.id === tempId
-              ? { ...p, id: data.id, content: { text, image: mediaUrl } }
-              : p
+            p.id === tempId ? { ...p, id: data.id, content: contentData } : p
           )
         );
       }
