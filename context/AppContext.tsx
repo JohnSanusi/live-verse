@@ -310,7 +310,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         reject(new Error(`TIMEOUT: ${context} took longer than ${ms}ms`));
       }, ms);
 
-      promise
+      Promise.resolve(promise)
         .then((res) => {
           clearTimeout(timer);
           resolve(res);
