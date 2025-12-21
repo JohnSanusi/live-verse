@@ -43,6 +43,7 @@ export interface FeedPost {
   content: {
     text: string;
     image?: string;
+    video?: string;
   };
   stats: {
     likes: number;
@@ -68,7 +69,7 @@ export interface Status {
   user: User;
   items: {
     id: string;
-    type: "image" | "video";
+    type: "image" | "video" | "text";
     url: string;
     duration: number;
     content?: string;
