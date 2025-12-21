@@ -1,10 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Settings, Check, X, Camera, Loader2 } from "lucide-react";
+import {
+  Settings,
+  Check,
+  X,
+  Camera,
+  Loader2,
+  MessageCircle,
+} from "lucide-react";
 import { User, useApp } from "@/context/AppContext";
 import { EliteBadge } from "./EliteBadge";
 import { useToast } from "@/components/ui/Toast";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 interface ProfileHeaderProps {
   user: User;
@@ -19,18 +28,54 @@ export const ProfileHeader = ({
   autoEdit = false,
   onFollowToggle,
 }: ProfileHeaderProps) => {
-  const { updateProfile, toggleFollow, uploadFile } = useApp();
+  const { updateProfile, toggleFollow, uploadFile, createChat } = useApp();
+  const router = useRouter();
   const { showToast } = useToast();
   const [isEditing, setIsEditing] = useState(autoEdit);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [stats, setStats] = useState(
+    user.stats || { posts: 0, followers: 0, following: 0 }
+  );
 
   const [editName, setEditName] = useState(user.name);
   const [editBio, setEditBio] = useState(user.bio);
 
   const [editAvatar, setEditAvatar] = useState(user.avatar);
   const [editCover, setEditCover] = useState(user.coverPhoto);
+
+  // Fetch real stats from database
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const { count: postsCount } = await supabase
+          .from("posts")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id);
+
+        const { count: followersCount } = await supabase
+          .from("follows")
+          .select("*", { count: "exact", head: true })
+          .eq("following_id", user.id);
+
+        const { count: followingCount } = await supabase
+          .from("follows")
+          .select("*", { count: "exact", head: true })
+          .eq("follower_id", user.id);
+
+        setStats({
+          posts: postsCount || 0,
+          followers: followersCount || 0,
+          following: followingCount || 0,
+        });
+      } catch (err) {
+        console.error("Error fetching stats:", err);
+      }
+    };
+
+    fetchStats();
+  }, [user.id]);
 
   React.useEffect(() => {
     if (!isEditing) {
@@ -114,6 +159,17 @@ export const ProfileHeader = ({
     setEditName(user.name);
     setEditBio(user.bio);
     setIsEditing(false);
+  };
+
+  const handleMessage = async () => {
+    try {
+      const chatId = await createChat(user.id);
+      if (chatId) {
+        router.push(`/chats?chat=${chatId}`);
+      }
+    } catch (err) {
+      showToast("Failed to create chat", "error");
+    }
   };
 
   return (
@@ -235,20 +291,33 @@ export const ProfileHeader = ({
                 </>
               )
             ) : (
-              <Button
-                variant={user.isFriend ? "outline" : "primary"}
-                size="sm"
-                className={`h-9 px-4 rounded-full ${
-                  user.isFriend
-                    ? "border-primary/50 text-primary"
-                    : "bg-primary text-primary-foreground"
-                }`}
-                onClick={() =>
-                  onFollowToggle ? onFollowToggle() : toggleFollow(user.id)
-                }
-              >
-                {user.isFriend ? "Following" : "Follow"}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant={user.isFriend ? "outline" : "primary"}
+                  size="sm"
+                  className={`h-9 px-4 rounded-full ${
+                    user.isFriend
+                      ? "border-primary/50 text-primary"
+                      : "bg-primary text-primary-foreground"
+                  }`}
+                  onClick={() =>
+                    onFollowToggle ? onFollowToggle() : toggleFollow(user.id)
+                  }
+                >
+                  {user.isFriend ? "Following" : "Follow"}
+                </Button>
+                {user.isFriend && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-4 rounded-full border-primary/50 text-primary"
+                    onClick={handleMessage}
+                  >
+                    <MessageCircle size={16} className="mr-1" />
+                    Message
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </div>

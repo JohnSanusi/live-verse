@@ -304,39 +304,57 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (!query.trim()) return [];
 
       console.log("Executing searchUsers with query:", query);
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .or(`name.ilike.%${query.trim()}%,handle.ilike.%${query.trim()}%`)
-        .limit(20);
 
-      if (error) {
-        console.error("Error searching users:", error);
+      try {
+        // Add 5-second timeout to prevent infinite loading
+        const searchPromise = (async () => {
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .or(`name.ilike.%${query.trim()}%,handle.ilike.%${query.trim()}%`)
+            .limit(20);
+
+          if (error) {
+            console.error("Error searching users:", error);
+            return [];
+          }
+
+          console.log("searchUsers found", data?.length || 0, "results.");
+
+          const { data: myFollows } = await supabase
+            .from("follows")
+            .select("following_id")
+            .eq("follower_id", currentUser.id);
+
+          const followingIds = new Set(
+            myFollows?.map((f: any) => f.following_id) || []
+          );
+
+          return data.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            handle: p.handle,
+            avatar: p.avatar_url,
+            bio: p.bio,
+            stats: p.stats || { posts: 0, followers: 0, following: 0 },
+            isVerified: p.is_verified,
+            isFriend: followingIds.has(p.id),
+            status: "offline" as const,
+          }));
+        })();
+
+        const timeoutPromise = new Promise<User[]>((resolve) => {
+          setTimeout(() => {
+            console.warn("Search timed out after 5 seconds");
+            resolve([]);
+          }, 5000);
+        });
+
+        return await Promise.race([searchPromise, timeoutPromise]);
+      } catch (err) {
+        console.error("Search failed:", err);
         return [];
       }
-
-      console.log("searchUsers found", data?.length || 0, "results.");
-
-      const { data: myFollows } = await supabase
-        .from("follows")
-        .select("following_id")
-        .eq("follower_id", currentUser.id);
-
-      const followingIds = new Set(
-        myFollows?.map((f: any) => f.following_id) || []
-      );
-
-      return data.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        handle: p.handle,
-        avatar: p.avatar_url,
-        bio: p.bio,
-        stats: p.stats || { posts: 0, followers: 0, following: 0 },
-        isVerified: p.is_verified,
-        isFriend: followingIds.has(p.id),
-        status: "offline",
-      }));
     },
     [currentUser.id]
   );
