@@ -300,7 +300,7 @@ DROP POLICY IF EXISTS "Auth update" ON storage.objects;
 CREATE POLICY "Auth update" ON storage.objects FOR UPDATE USING ((select auth.uid()) IS NOT NULL);
 
 DROP POLICY IF EXISTS "Auth delete" ON storage.objects;
-CREATE POLICY "Auth delete" ON storage.objects FOR DELETE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Auth delete" ON storage.objects FOR DELETE USING ((select auth.uid()) IS NOT NULL);
 
 -- -------------------------------------------------------
 -- Useful Diagnostics (Run manually if needed)
