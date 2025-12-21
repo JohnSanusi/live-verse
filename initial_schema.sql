@@ -38,6 +38,36 @@ BEGIN
     END IF;
 END $$;
 
+-- -------------------------------------------------------
+-- Auth Automation (Security Fix)
+-- -------------------------------------------------------
+
+-- Create a secure function to handle new user signups
+-- SET search_path = '' is required by Supabase Security Advisor
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, name, handle, avatar_url, bio)
+  VALUES (
+    new.id,
+    COALESCE(new.raw_user_meta_data->>'full_name', new.email),
+    COALESCE(new.raw_user_meta_data->>'user_name', split_part(new.email, '@', 1)),
+    COALESCE(new.raw_user_meta_data->>'avatar_url', ''),
+    'Just exploring the Void'
+  );
+  RETURN new;
+END;
+$$;
+
+-- Trigger to call the function onทุก signup
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
 -- Posts
 CREATE TABLE IF NOT EXISTS public.posts (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
