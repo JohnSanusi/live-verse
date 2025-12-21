@@ -874,13 +874,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         .select("*", { count: "exact", head: true })
         .eq("follower_id", authUser.id);
 
-      const user: User = {
+      const profile: User = {
         id: authUser.id,
         name:
-          userProfile?.name ||
-          authUser.user_metadata?.full_name ||
-          authUser.email?.split("@")[0] ||
-          "User",
+          userProfile?.name || authUser.user_metadata?.full_name || "New User",
         handle:
           userProfile?.handle ||
           authUser.user_metadata?.user_name ||
@@ -889,21 +886,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         avatar:
           userProfile?.avatar_url ||
           authUser.user_metadata?.avatar_url ||
-          (authUser.email ? authUser.email[0].toUpperCase() : "U"),
-        bio: userProfile?.bio ?? "Just exploring the Void",
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            userProfile?.name || "User"
+          )}&background=random`,
+        bio: userProfile?.bio || "Just exploring the Void",
         stats: {
           posts: postsCount || 0,
           followers: followersCount || 0,
           following: followingCount || 0,
         },
-        status: "online",
         isVerified: userProfile?.is_verified || false,
-        isPrivate: userProfile?.is_private || false,
         coverPhoto: userProfile?.cover_url || "",
+        isPrivate: userProfile?.is_private || false,
       };
-      setCurrentUser(user);
-    } catch (error) {
-      console.error("Error in fetchUserProfile:", error);
+
+      setCurrentUser(profile);
+      localStorage.setItem("currentUser", JSON.stringify(profile));
+    } catch (err) {
+      console.error("fetchUserProfile failed:", err);
       // Ensure we set SOME state so loader doesn't hang
       setIsLoading(false);
     }
@@ -999,8 +999,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
       return data.publicUrl;
-    } catch (error) {
-      console.error("Upload error:", error);
+    } catch (error: any) {
+      console.error("Upload Error Details:", {
+        bucket,
+        fileName: file.name,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
       return null;
     }
   };

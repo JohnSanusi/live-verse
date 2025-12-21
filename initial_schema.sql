@@ -15,6 +15,29 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Ensure columns exist if table was already there
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='name') THEN
+        ALTER TABLE public.profiles ADD COLUMN name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='handle') THEN
+        ALTER TABLE public.profiles ADD COLUMN handle TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='bio') THEN
+        ALTER TABLE public.profiles ADD COLUMN bio TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='cover_url') THEN
+        ALTER TABLE public.profiles ADD COLUMN cover_url TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='is_verified') THEN
+        ALTER TABLE public.profiles ADD COLUMN is_verified BOOLEAN DEFAULT false;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='is_private') THEN
+        ALTER TABLE public.profiles ADD COLUMN is_private BOOLEAN DEFAULT false;
+    END IF;
+END $$;
+
 -- Posts
 CREATE TABLE IF NOT EXISTS public.posts (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -150,47 +173,107 @@ ALTER TABLE public.search_history ENABLE ROW LEVEL SECURITY;
 -- Policies
 -- -------------------------------------------------------
 
+-- Profiles
+DROP POLICY IF EXISTS "Public profiles" ON profiles;
 CREATE POLICY "Public profiles" ON profiles FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Own profile updates" ON profiles;
 CREATE POLICY "Own profile updates" ON profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Publicly readable tables
+DROP POLICY IF EXISTS "Public posts" ON posts;
 CREATE POLICY "Public posts" ON posts FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public reels" ON reels;
 CREATE POLICY "Public reels" ON reels FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public likes" ON likes;
 CREATE POLICY "Public likes" ON likes FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public comments" ON comments;
 CREATE POLICY "Public comments" ON comments FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public follows" ON follows;
 CREATE POLICY "Public follows" ON follows FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public marketplace" ON marketplace_items;
 CREATE POLICY "Public marketplace" ON marketplace_items FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public statuses" ON statuses;
 CREATE POLICY "Public statuses" ON statuses FOR SELECT USING (true);
 
 -- Authenticated Creations
+DROP POLICY IF EXISTS "Create posts" ON posts;
 CREATE POLICY "Create posts" ON posts FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Create reels" ON reels;
 CREATE POLICY "Create reels" ON reels FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Handle likes" ON likes;
 CREATE POLICY "Handle likes" ON likes FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Handle comments" ON comments;
 CREATE POLICY "Handle comments" ON comments FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Handle follows" ON follows;
 CREATE POLICY "Handle follows" ON follows FOR ALL USING (auth.uid() = follower_id);
+
+DROP POLICY IF EXISTS "Handle marketplace" ON marketplace_items;
 CREATE POLICY "Handle marketplace" ON marketplace_items FOR ALL USING (auth.uid() = seller_id);
+
+DROP POLICY IF EXISTS "Handle statuses" ON statuses;
 CREATE POLICY "Handle statuses" ON statuses FOR ALL USING (auth.uid() = user_id);
 
 -- Chat Related
+DROP POLICY IF EXISTS "Chat view" ON chats;
 CREATE POLICY "Chat view" ON chats FOR SELECT USING (
     EXISTS (SELECT 1 FROM chat_participants WHERE chat_id = id AND user_id = auth.uid())
 );
+
+DROP POLICY IF EXISTS "Message view" ON messages;
 CREATE POLICY "Message view" ON messages FOR SELECT USING (
     EXISTS (SELECT 1 FROM chat_participants WHERE chat_id = messages.chat_id AND user_id = auth.uid())
 );
+
+DROP POLICY IF EXISTS "Send messages" ON messages;
 CREATE POLICY "Send messages" ON messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
 
 -- User Specific
+DROP POLICY IF EXISTS "Own notifications" ON notifications;
 CREATE POLICY "Own notifications" ON notifications FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Own search history" ON search_history;
 CREATE POLICY "Own search history" ON search_history FOR ALL USING (auth.uid() = user_id);
 
 -- -------------------------------------------------------
 -- Storage
 -- -------------------------------------------------------
 
+-- Create all required buckets
 INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('posts', 'posts', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('reels', 'reels', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('messages', 'messages', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('statuses', 'statuses', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('marketplace', 'marketplace', true) ON CONFLICT (id) DO NOTHING;
 
-CREATE POLICY "Public access" ON storage.objects FOR SELECT USING (bucket_id IN ('avatars', 'posts', 'reels'));
-CREATE POLICY "Auth upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id IN ('avatars', 'posts', 'reels'));
+-- Storage Policies
+DROP POLICY IF EXISTS "Public access" ON storage.objects;
+CREATE POLICY "Public access" ON storage.objects FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Auth upload" ON storage.objects;
+CREATE POLICY "Auth upload" ON storage.objects FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "Auth update" ON storage.objects;
+CREATE POLICY "Auth update" ON storage.objects FOR UPDATE USING (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "Auth delete" ON storage.objects;
+CREATE POLICY "Auth delete" ON storage.objects FOR DELETE USING (auth.uid() IS NOT NULL);
+
+-- -------------------------------------------------------
+-- Useful Diagnostics (Run manually if needed)
+-- -------------------------------------------------------
+-- SELECT count(*) FROM public.profiles;
+-- SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'profiles';
+-- SELECT id, name, public FROM storage.buckets;
+
