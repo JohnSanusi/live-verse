@@ -304,7 +304,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       console.log("[DIAG] Executing searchUsers:", {
         query: query.trim(),
         currentUserId: currentUser.id,
-        isAuthenticated
+        isAuthenticated,
       });
 
       const { data, error, status, statusText } = await supabase
@@ -320,14 +320,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           hint: error.hint,
           code: error.code,
           status,
-          statusText
+          statusText,
         });
         return [];
       }
 
       console.log("[DIAG] searchUsers SUCCESS:", {
         count: data?.length || 0,
-        ids: data?.map((d: any) => d.id)
+        ids: data?.map((d: any) => d.id),
       });
 
       const { data: myFollows } = await supabase
@@ -930,7 +930,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       console.log("[DIAG] Attempting profile update:", {
         userId: currentUser.id,
-        payload: profileUpdate
+        payload: profileUpdate,
       });
 
       const {
@@ -938,7 +938,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         error,
         count,
         status,
-        statusText
+        statusText,
       } = await supabase
         .from("profiles")
         .update(profileUpdate)
@@ -951,26 +951,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           details: error.details,
           hint: error.hint,
           status,
-          statusText
+          statusText,
         });
         throw error;
       }
 
       console.log("[DIAG] updateProfile SUCCESS:", {
         count: updateData?.length || 0,
-        returnedData: updateData
+        returnedData: updateData,
       });
 
       if (!updateData || updateData.length === 0) {
         console.warn("[DIAG] updateProfile 0 ROWS MODIFIED");
         throw new Error("No rows modified. Check RLS or existence.");
-      }
-        console.warn(
-          "No rows updated. This usually means the RLS policy is blocking the update or the user ID doesn't exist in 'profiles'."
-        );
-        throw new Error(
-          "Profile update failed: No rows modified. Check RLS policies."
-        );
       }
 
       const updated = { ...currentUser, ...data };
@@ -997,7 +990,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       fileName: file.name,
       fileSize: file.size,
       fileType: file.type,
-      currentUserId: currentUser.id
+      currentUserId: currentUser.id,
     });
 
     try {
@@ -1014,14 +1007,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           message: uploadError.message,
           name: uploadError.name,
           bucket,
-          filePath
+          filePath,
         });
         throw uploadError;
       }
 
       console.log("[DIAG] uploadFile STORAGE SUCCESS:", data);
 
-      const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(filePath);
+      const { data: urlData } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(filePath);
       console.log("[DIAG] uploadFile PUBLIC URL:", urlData.publicUrl);
       return urlData.publicUrl;
     } catch (error: any) {
