@@ -299,6 +299,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser.id]);
 
+  // Helper to prevent infinite hangs
+  const withTimeout = async <T,>(
+    promise: Promise<T>,
+    ms: number = 10000,
+    context: string
+  ): Promise<T> => {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`TIMEOUT: ${context} took longer than ${ms}ms`));
+      }, ms);
+
+      promise
+        .then((res) => {
+          clearTimeout(timer);
+          resolve(res);
+        })
+        .catch((err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+    });
+  };
+
   const searchUsers = useCallback(
     async (query: string): Promise<User[]> => {
       console.log("[DIAG] Executing searchUsers:", {
@@ -307,11 +330,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         isAuthenticated,
       });
 
-      const { data, error, status, statusText } = await supabase
-        .from("profiles")
-        .select("*")
-        .or(`name.ilike.%${query.trim()}%,handle.ilike.%${query.trim()}%`)
-        .limit(20);
+      let data, error, status, statusText;
+
+      try {
+        const result = await withTimeout(
+          supabase
+            .from("profiles")
+            .select("*")
+            .or(`name.ilike.%${query.trim()}%,handle.ilike.%${query.trim()}%`)
+            .limit(20),
+          10000,
+          "searchUsers info"
+        );
+        data = result.data;
+        error = result.error;
+        status = result.status;
+        statusText = result.statusText;
+      } catch (err: any) {
+        console.error("[DIAG] searchUsers TIMEOUT/ERROR:", err);
+        return [];
+      }
 
       if (error) {
         console.error("[DIAG] searchUsers FAILED:", {
@@ -330,14 +368,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         ids: data?.map((d: any) => d.id),
       });
 
-      const { data: myFollows } = await supabase
-        .from("follows")
-        .select("following_id")
-        .eq("follower_id", currentUser.id);
-
-      const followingIds = new Set(
-        myFollows?.map((f: any) => f.following_id) || []
-      );
+      // Fetch follows to determine friendship status
+      let followingIds = new Set();
+      try {
+        const { data: myFollows } = await withTimeout(
+          supabase
+            .from("follows")
+            .select("following_id")
+            .eq("follower_id", currentUser.id),
+          5000,
+          "searchUsers follows"
+        );
+        followingIds = new Set(
+          myFollows?.map((f: any) => f.following_id) || []
+        );
+      } catch (followErr) {
+        console.warn("Failed to fetch follows during search:", followErr);
+      }
 
       return data.map((p: any) => ({
         id: p.id,
@@ -351,7 +398,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         status: "offline",
       }));
     },
-    [currentUser.id]
+    [currentUser.id, isAuthenticated]
   );
 
   const fetchChats = useCallback(async () => {
@@ -998,9 +1045,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `${currentUser.id}/${fileName}`;
 
-      const { data, error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(filePath, file);
+      const { data, error: uploadError } = await withTimeout(
+        supabase.storage.from(bucket).upload(filePath, file),
+        15000,
+        `uploadFile ${bucket}`
+      );
 
       if (uploadError) {
         console.error("[DIAG] uploadFile STORAGE ERROR:", {
