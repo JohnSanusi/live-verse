@@ -258,56 +258,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [settings]);
 
-  // Perform Connection Health Check
-  useEffect(() => {
-    const checkConnection = async () => {
-      console.log("[DIAG] Connection Health Check Starting...");
-
-      // 1. Check Config presence
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-      console.log("[DIAG] Config Check:", {
-        url: url, // Logging actual URL to verify for typos/existence
-        urlPresent: !!url,
-        urlLength: url?.length || 0,
-        keyPresent: !!key,
-        keyLength: key?.length || 0,
-      });
-
-      if (!url || !key) {
-        console.error("[DIAG] CRITICAL: Supabase Env Vars missing!");
-        return;
-      }
-
-      // 2. Ping Database
-      try {
-        const start = Date.now();
-        const { count, error } = await withTimeout(
-          supabase
-            .from("profiles")
-            .select("id", { count: "exact", head: true }),
-          5000,
-          "Health Check Ping"
-        );
-
-        if (error) {
-          console.error("[DIAG] Health Check Ping FAILED:", error);
-        } else {
-          console.log(
-            `[DIAG] Health Check Ping SUCCESS in ${
-              Date.now() - start
-            }ms. Profile count: ${count}`
-          );
-        }
-      } catch (err) {
-        console.error("[DIAG] Health Check Ping TIMEOUT/ERROR:", err);
-      }
-    };
-
-    checkConnection();
-  }, []);
-
   // Persist currentUser
   useEffect(() => {
     if (currentUser.id) {
@@ -349,94 +299,34 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser.id]);
 
-  // Helper to prevent infinite hangs
-  const withTimeout = async <T,>(
-    promise: PromiseLike<T>,
-    ms: number = 10000,
-    context: string
-  ): Promise<T> => {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error(`TIMEOUT: ${context} took longer than ${ms}ms`));
-      }, ms);
-
-      Promise.resolve(promise)
-        .then((res) => {
-          clearTimeout(timer);
-          resolve(res);
-        })
-        .catch((err) => {
-          clearTimeout(timer);
-          reject(err);
-        });
-    });
-  };
-
   const searchUsers = useCallback(
     async (query: string): Promise<User[]> => {
-      console.log("[DIAG] Executing searchUsers:", {
-        query: query.trim(),
-        currentUserId: currentUser.id,
-        isAuthenticated,
-      });
+      if (!query.trim()) return [];
 
-      let data, error, status, statusText;
-
-      try {
-        const result = await withTimeout(
-          supabase
-            .from("profiles")
-            .select("*")
-            .or(`name.ilike.%${query.trim()}%,handle.ilike.%${query.trim()}%`)
-            .limit(20),
-          10000,
-          "searchUsers info"
-        );
-        data = result.data;
-        error = result.error;
-        status = result.status;
-        statusText = result.statusText;
-      } catch (err: any) {
-        console.error("[DIAG] searchUsers TIMEOUT/ERROR:", err);
-        return [];
-      }
+      console.log("Executing searchUsers with query:", query);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .or(`name.ilike.%${query.trim()}%,handle.ilike.%${query.trim()}%`)
+        .limit(20);
 
       if (error) {
-        console.error("[DIAG] searchUsers FAILED:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-          status,
-          statusText,
-        });
+        console.error("Error searching users:", error);
         return [];
       }
 
-      console.log("[DIAG] searchUsers SUCCESS:", {
-        count: data?.length || 0,
-        ids: data?.map((d: any) => d.id),
-      });
+      console.log("searchUsers found", data?.length || 0, "results.");
 
-      // Fetch follows to determine friendship status
-      let followingIds = new Set();
-      try {
-        const { data: myFollows } = await withTimeout(
-          supabase
-            .from("follows")
-            .select("following_id")
-            .eq("follower_id", currentUser.id),
-          5000,
-          "searchUsers follows"
-        );
-        followingIds = new Set(
-          myFollows?.map((f: any) => f.following_id) || []
-        );
-      } catch (followErr) {
-        console.warn("Failed to fetch follows during search:", followErr);
-      }
+      const { data: myFollows } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", currentUser.id);
 
-      return (data || []).map((p: any) => ({
+      const followingIds = new Set(
+        myFollows?.map((f: any) => f.following_id) || []
+      );
+
+      return data.map((p: any) => ({
         id: p.id,
         name: p.name,
         handle: p.handle,
@@ -448,7 +338,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         status: "offline",
       }));
     },
-    [currentUser.id, isAuthenticated]
+    [currentUser.id]
   );
 
   const fetchChats = useCallback(async () => {
@@ -953,7 +843,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               authUser.email?.split("@")[0] ||
               "user",
             avatar_url: authUser.user_metadata?.avatar_url || "",
-            bio: "",
+            bio: "Just exploring the Void",
           })
           .select()
           .single();
@@ -994,7 +884,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           `https://ui-avatars.com/api/?name=${encodeURIComponent(
             userProfile?.name || "User"
           )}&background=random`,
-        bio: userProfile?.bio || "",
+        bio: userProfile?.bio || "Just exploring the Void",
         stats: {
           posts: postsCount || 0,
           followers: followersCount || 0,
@@ -1025,42 +915,32 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (data.coverPhoto !== undefined)
         profileUpdate.cover_url = data.coverPhoto;
 
-      console.log("[DIAG] Attempting profile update:", {
-        userId: currentUser.id,
-        payload: profileUpdate,
-      });
-
       const {
         data: updateData,
         error,
         count,
-        status,
-        statusText,
       } = await supabase
         .from("profiles")
         .update(profileUpdate)
         .eq("id", currentUser.id)
         .select();
 
+      console.log(
+        "Supabase response - Data:",
+        updateData,
+        "Error:",
+        error,
+        "Count:",
+        count
+      );
+
       if (error) {
-        console.error("[DIAG] updateProfile FAILED:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          status,
-          statusText,
-        });
+        console.error("Error updating profile:", error);
         throw error;
       }
 
-      console.log("[DIAG] updateProfile SUCCESS:", {
-        count: updateData?.length || 0,
-        returnedData: updateData,
-      });
-
       if (!updateData || updateData.length === 0) {
-        console.warn("[DIAG] updateProfile 0 ROWS MODIFIED");
-        throw new Error("No rows modified. Check RLS or existence.");
+        throw new Error("No rows modified during profile update");
       }
 
       const updated = { ...currentUser, ...data };
@@ -1082,49 +962,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const uploadFile = async (bucket: string, file: File) => {
-    console.log("[DIAG] Starting uploadFile:", {
-      bucket,
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      currentUserId: currentUser.id,
-    });
-
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `${currentUser.id}/${fileName}`;
 
-      const { data, error: uploadError } = await withTimeout(
-        supabase.storage.from(bucket).upload(filePath, file),
-        15000,
-        `uploadFile ${bucket}`
-      );
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file);
 
       if (uploadError) {
-        console.error("[DIAG] uploadFile STORAGE ERROR:", {
-          message: uploadError.message,
-          name: uploadError.name,
-          bucket,
-          filePath,
-        });
         throw uploadError;
       }
 
-      console.log("[DIAG] uploadFile STORAGE SUCCESS:", data);
-
-      const { data: urlData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(filePath);
-      console.log("[DIAG] uploadFile PUBLIC URL:", urlData.publicUrl);
-      return urlData.publicUrl;
-    } catch (error: any) {
-      console.error("[DIAG] uploadFile CATCH ERROR:", {
-        bucket,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      });
+      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+      return data.publicUrl;
+    } catch (error) {
+      console.error("Upload error:", error);
       return null;
     }
   };

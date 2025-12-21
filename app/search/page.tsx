@@ -43,10 +43,14 @@ export default function SearchPage() {
       return;
     }
 
+    let isActive = true;
+
     const delayDebounce = setTimeout(async () => {
       setIsSearching(true);
       try {
         const users = await searchUsers(query);
+        if (!isActive) return;
+
         const filtered = users.filter((u) => u.id !== currentUser.id);
         setResults(filtered);
 
@@ -57,11 +61,14 @@ export default function SearchPage() {
       } catch (err) {
         console.error("Search failed:", err);
       } finally {
-        setIsSearching(false);
+        if (isActive) setIsSearching(false);
       }
     }, 600);
 
-    return () => clearTimeout(delayDebounce);
+    return () => {
+      isActive = false;
+      clearTimeout(delayDebounce);
+    };
   }, [query, searchUsers, currentUser.id, saveSearchQuery]);
 
   const handleDeleteHistory = async (e: React.MouseEvent, item: string) => {
@@ -99,6 +106,9 @@ export default function SearchPage() {
         {isSearching ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+            <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+              Searching Void
+            </p>
           </div>
         ) : query.trim().length > 1 ? (
           <div className="space-y-4">

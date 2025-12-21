@@ -56,7 +56,7 @@ BEGIN
     COALESCE(new.raw_user_meta_data->>'full_name', new.email),
     COALESCE(new.raw_user_meta_data->>'user_name', split_part(new.email, '@', 1)),
     COALESCE(new.raw_user_meta_data->>'avatar_url', ''),
-    ''
+    'Just exploring the Void'
   );
   RETURN new;
 END;
@@ -208,7 +208,7 @@ DROP POLICY IF EXISTS "Public profiles" ON profiles;
 CREATE POLICY "Public profiles" ON profiles FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Own profile updates" ON profiles;
-CREATE POLICY "Own profile updates" ON profiles FOR UPDATE USING ((select auth.uid()) = id);
+CREATE POLICY "Own profile updates" ON profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Publicly readable tables
 DROP POLICY IF EXISTS "Public posts" ON posts;
@@ -234,52 +234,52 @@ CREATE POLICY "Public statuses" ON statuses FOR SELECT USING (true);
 
 -- Authenticated Creations
 DROP POLICY IF EXISTS "Create posts" ON posts;
-CREATE POLICY "Create posts" ON posts FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "Create posts" ON posts FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Create reels" ON reels;
-CREATE POLICY "Create reels" ON reels FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "Create reels" ON reels FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Handle likes" ON likes;
-CREATE POLICY "Handle likes" ON likes FOR ALL USING ((select auth.uid()) = user_id);
+CREATE POLICY "Handle likes" ON likes FOR ALL USING (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Handle comments" ON comments;
-CREATE POLICY "Handle comments" ON comments FOR ALL USING ((select auth.uid()) = user_id);
+CREATE POLICY "Handle comments" ON comments FOR ALL USING (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Handle follows" ON follows;
-CREATE POLICY "Handle follows" ON follows FOR ALL USING ((select auth.uid()) = follower_id);
+CREATE POLICY "Handle follows" ON follows FOR ALL USING (auth.uid() = follower_id);
 
 DROP POLICY IF EXISTS "Handle marketplace" ON marketplace_items;
-CREATE POLICY "Handle marketplace" ON marketplace_items FOR ALL USING ((select auth.uid()) = seller_id);
+CREATE POLICY "Handle marketplace" ON marketplace_items FOR ALL USING (auth.uid() = seller_id);
 
 DROP POLICY IF EXISTS "Handle statuses" ON statuses;
-CREATE POLICY "Handle statuses" ON statuses FOR ALL USING ((select auth.uid()) = user_id);
+CREATE POLICY "Handle statuses" ON statuses FOR ALL USING (auth.uid() = user_id);
 
 -- Chat Related
 DROP POLICY IF EXISTS "Chat view" ON chats;
 CREATE POLICY "Chat view" ON chats FOR SELECT USING (
-    EXISTS (SELECT 1 FROM chat_participants WHERE chat_id = id AND user_id = (select auth.uid()))
+    EXISTS (SELECT 1 FROM chat_participants WHERE chat_id = id AND user_id = auth.uid())
 );
 
 DROP POLICY IF EXISTS "Message view" ON messages;
 CREATE POLICY "Message view" ON messages FOR SELECT USING (
-    EXISTS (SELECT 1 FROM chat_participants WHERE chat_id = messages.chat_id AND user_id = (select auth.uid()))
+    EXISTS (SELECT 1 FROM chat_participants WHERE chat_id = messages.chat_id AND user_id = auth.uid())
 );
 
 DROP POLICY IF EXISTS "Send messages" ON messages;
-CREATE POLICY "Send messages" ON messages FOR INSERT WITH CHECK ((select auth.uid()) = sender_id);
+CREATE POLICY "Send messages" ON messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
 
 -- User Specific
 DROP POLICY IF EXISTS "Own notifications" ON notifications;
-CREATE POLICY "Own notifications" ON notifications FOR SELECT USING ((select auth.uid()) = user_id);
-
+DROP POLICY IF EXISTS "View own notifications" ON notifications;
+DROP POLICY IF EXISTS "Delete own notifications" ON notifications;
 DROP POLICY IF EXISTS "Create notifications" ON notifications;
-CREATE POLICY "Create notifications" ON notifications FOR INSERT WITH CHECK ((select auth.uid()) IS NOT NULL);
 
-DROP POLICY IF EXISTS "Update notifications" ON notifications;
-CREATE POLICY "Update notifications" ON notifications FOR UPDATE USING ((select auth.uid()) = user_id);
+CREATE POLICY "View own notifications" ON notifications FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Delete own notifications" ON notifications FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Create notifications" ON notifications FOR INSERT WITH CHECK (auth.uid() = actor_id);
 
 DROP POLICY IF EXISTS "Own search history" ON search_history;
-CREATE POLICY "Own search history" ON search_history FOR ALL USING ((select auth.uid()) = user_id);
+CREATE POLICY "Own search history" ON search_history FOR ALL USING (auth.uid() = user_id);
 
 -- -------------------------------------------------------
 -- Storage
@@ -298,13 +298,13 @@ DROP POLICY IF EXISTS "Public access" ON storage.objects;
 CREATE POLICY "Public access" ON storage.objects FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Auth upload" ON storage.objects;
-CREATE POLICY "Auth upload" ON storage.objects FOR INSERT WITH CHECK ((select auth.uid()) IS NOT NULL);
+CREATE POLICY "Auth upload" ON storage.objects FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
 DROP POLICY IF EXISTS "Auth update" ON storage.objects;
-CREATE POLICY "Auth update" ON storage.objects FOR UPDATE USING ((select auth.uid()) IS NOT NULL);
+CREATE POLICY "Auth update" ON storage.objects FOR UPDATE USING (auth.uid() IS NOT NULL);
 
 DROP POLICY IF EXISTS "Auth delete" ON storage.objects;
-CREATE POLICY "Auth delete" ON storage.objects FOR DELETE USING ((select auth.uid()) IS NOT NULL);
+CREATE POLICY "Auth delete" ON storage.objects FOR DELETE USING (auth.uid() IS NOT NULL);
 
 -- -------------------------------------------------------
 -- Useful Diagnostics (Run manually if needed)
