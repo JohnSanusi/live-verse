@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FeedPost, Comment } from "@/context/AppContext";
 import { useApp } from "@/context/AppContext";
+import { ConfirmModal } from "./ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { EliteBadge } from "./EliteBadge";
@@ -39,6 +40,8 @@ export const FeedItem = ({
 }: FeedItemProps) => {
   const [showComments, setShowComments] = useState(false);
   const [showReactions, setShowReactions] = useState(false); // Added showReactions state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [commentText, setCommentText] = useState("");
   const { toggleCommentLike, deletePost, currentUser } = useApp();
   const { showToast } = useToast();
@@ -73,6 +76,19 @@ export const FeedItem = ({
 
   const handleShare = () => {
     showToast("Link copied to clipboard!", "success");
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deletePost(id);
+      showToast("Post deleted permanently", "success");
+    } catch (err) {
+      showToast("Failed to delete post", "error");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
   };
 
   return (
@@ -115,18 +131,23 @@ export const FeedItem = ({
           <Button
             variant="ghost"
             size="sm"
-            className="text-muted-foreground hover:text-red-500 hover:bg-red-500/10 h-8 w-8 p-0"
-            onClick={() => {
-              if (confirm("Are you sure you want to delete this post?")) {
-                deletePost(id);
-                showToast("Post deleted", "success");
-              }
-            }}
+            className="text-muted-foreground hover:text-red-500 hover:bg-red-500/10 h-10 w-10 p-0 rounded-full"
+            onClick={() => setShowDeleteConfirm(true)}
           >
-            <Trash2 size={16} />
+            <Trash2 size={20} />
           </Button>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDelete}
+        title="Delete Post?"
+        message="This action cannot be undone. This post will be permanently removed from your feed."
+        confirmText="Delete"
+        isLoading={isDeleting}
+      />
 
       <div className="px-4">
         <p className="text-sm text-foreground/90 mb-3 leading-relaxed">

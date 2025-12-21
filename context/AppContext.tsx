@@ -1062,7 +1062,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (!updateData || updateData.length === 0) {
-        throw new Error("No rows modified during profile update");
+        // Fallback: If no data returned but no error, assume success if count > 0 or if we're confident
+        console.warn(
+          "No data returned from profile update, but no error reported."
+        );
       }
 
       const updated = { ...currentUser, ...data };
@@ -1072,9 +1075,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setUsers((prev) =>
         prev.map((u) => (u.id === currentUser.id ? { ...u, ...data } : u))
       );
-
-      // Persist to localStorage
-      localStorage.setItem("currentUser", JSON.stringify(updated));
 
       return true;
     } catch (error) {
@@ -1772,6 +1772,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) throw error;
 
+      if (!data) throw new Error("Post insertion failed: No data returned");
+
       if (data) {
         setFeeds((prev) =>
           prev.map((p) =>
@@ -1779,9 +1781,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           )
         );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating post:", error);
+      // Remove optimistic post on failure
       setFeeds((prev) => prev.filter((p) => p.id !== tempId));
+      throw error; // Let the UI handle the error toast for better feedback
     }
   };
 

@@ -19,12 +19,20 @@ export const FeedCreator = ({ onClose }: FeedCreatorProps) => {
   const { createPost, currentUser } = useApp();
   const { showToast } = useToast();
 
-  const handlePost = () => {
+  const handlePost = async () => {
     if (!text.trim() && !mediaUrl) return;
 
-    createPost(text, mediaFile || mediaUrl || undefined);
-    showToast("Post shared", "success");
-    onClose();
+    try {
+      await createPost(text, mediaFile || mediaUrl || undefined);
+      showToast("Post shared successfully!", "success");
+      onClose();
+    } catch (err: any) {
+      console.error("Failed to share post:", err);
+      showToast(
+        err.message || "Failed to share post. Please try again.",
+        "error"
+      );
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
