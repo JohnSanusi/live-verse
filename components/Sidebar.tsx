@@ -31,12 +31,6 @@ export const Sidebar = () => {
   const navItems = [
     { href: "/", icon: Home, label: "Feed" },
     { href: "/search", icon: Search, label: "Search" },
-    {
-      href: "/notifications",
-      icon: Bell,
-      label: "Notifications",
-      badge: unreadNotificationsCount,
-    },
     { href: "/chats", icon: MessageCircle, label: "Chats" },
     { href: "/reels", icon: Video, label: "Reels" },
     { href: "/marketplace", icon: ShoppingBag, label: "Marketplace" },

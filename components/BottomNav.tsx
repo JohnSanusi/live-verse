@@ -26,7 +26,6 @@ export const BottomNav = () => {
     { href: "/", icon: Home, label: "Home" },
     { href: "/search", icon: Search, label: "Search" },
     { href: "/chats", icon: MessageCircle, label: "Chats" },
-    { href: "/notifications", icon: Bell, label: "Activity" },
     { href: "/reels", icon: Video, label: "Reels" },
     { href: "/settings", icon: User, label: "Settings" },
   ];

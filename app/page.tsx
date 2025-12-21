@@ -63,7 +63,7 @@ export default function FeedsPage() {
             <FeedItem
               key={feed.id}
               {...feed}
-              onLike={(reaction) => toggleLike(feed.id, "post", reaction)}
+              onLike={() => toggleLike(feed.id, "post")}
               onComment={(text) => addComment(feed.id, text)}
             />
           ))
