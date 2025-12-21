@@ -56,7 +56,7 @@ BEGIN
     COALESCE(new.raw_user_meta_data->>'full_name', new.email),
     COALESCE(new.raw_user_meta_data->>'user_name', split_part(new.email, '@', 1)),
     COALESCE(new.raw_user_meta_data->>'avatar_url', ''),
-    'Just exploring the Void'
+    ''
   );
   RETURN new;
 END;
@@ -270,7 +270,9 @@ CREATE POLICY "Send messages" ON messages FOR INSERT WITH CHECK (auth.uid() = se
 
 -- User Specific
 DROP POLICY IF EXISTS "Own notifications" ON notifications;
-CREATE POLICY "Own notifications" ON notifications FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Own notifications" ON notifications FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Create notifications" ON notifications FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Update notifications" ON notifications FOR UPDATE USING (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Own search history" ON search_history;
 CREATE POLICY "Own search history" ON search_history FOR ALL USING (auth.uid() = user_id);

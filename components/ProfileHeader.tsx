@@ -81,23 +81,15 @@ export const ProfileHeader = ({
   ) => {
     const file = e.target.files?.[0];
     if (file) {
-      console.log(`[DIAG] ${type} file selected:`, {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-      });
-
       if (type === "avatar") setIsUploadingAvatar(true);
       else setIsUploadingCover(true);
 
       try {
-        console.log(`[DIAG] Triggering uploadFile for ${type}...`);
         // Upload to Supabase Storage
         const bucket = "avatars";
         const uploadedUrl = await uploadFile(bucket, file);
 
         if (uploadedUrl) {
-          console.log(`[DIAG] ${type} upload SUCCESS. URL:`, uploadedUrl);
           if (type === "avatar") setEditAvatar(uploadedUrl);
           else setEditCover(uploadedUrl);
           showToast(
@@ -105,18 +97,15 @@ export const ProfileHeader = ({
             "success"
           );
         } else {
-          console.error(`[DIAG] ${type} upload returned NULL`);
           showToast(`Failed to upload ${type}`, "error");
         }
       } catch (err: any) {
-        console.error(`[DIAG] ${type} upload caught error:`, err);
+        console.error(`Upload error:`, err);
         showToast(`Error uploading ${type}`, "error");
       } finally {
         if (type === "avatar") setIsUploadingAvatar(false);
         else setIsUploadingCover(false);
       }
-    } else {
-      console.warn(`[DIAG] No file selected for ${type}`);
     }
   };
 
