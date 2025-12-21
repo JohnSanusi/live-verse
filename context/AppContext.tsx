@@ -430,6 +430,95 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser.id]);
 
+  const fetchFollowLists = useCallback(async () => {
+    if (!currentUser.id) return;
+
+    try {
+      // Fetch following
+      const { data: followingData } = await supabase
+        .from("follows")
+        .select("following:following_id(*)")
+        .eq("follower_id", currentUser.id);
+
+      if (followingData && followingData.length > 0) {
+        setFollowing(
+          followingData.map((f: any) => ({
+            id: f.following.id,
+            name: f.following.name,
+            handle: f.following.handle,
+            avatar: f.following.avatar_url || "",
+            bio: f.following.bio || "",
+            stats: { posts: 0, followers: 0, following: 0 },
+            isVerified: f.following.is_verified,
+          }))
+        );
+      } else {
+        setFollowing([]);
+      }
+
+      // Fetch followers
+      const { data: followersData } = await supabase
+        .from("follows")
+        .select("follower:follower_id(*)")
+        .eq("following_id", currentUser.id);
+
+      if (followersData && followersData.length > 0) {
+        setFollowers(
+          followersData.map((f: any) => ({
+            id: f.follower.id,
+            name: f.follower.name,
+            handle: f.follower.handle,
+            avatar: f.follower.avatar_url || "",
+            bio: f.follower.bio || "",
+            stats: { posts: 0, followers: 0, following: 0 },
+            isVerified: f.follower.is_verified,
+          }))
+        );
+      } else {
+        setFollowers([]);
+      }
+    } catch (error) {
+      console.error("Error fetching follow lists:", error);
+    }
+  }, [currentUser.id]);
+
+  const fetchNotifications = useCallback(async () => {
+    const { data } = await supabase
+      .from("notifications")
+      .select(
+        `
+        *,
+        actor:actor_id (id, name, handle, avatar_url, is_verified)
+      `
+      )
+      .eq("user_id", currentUser.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (data) {
+      setNotifications(
+        data.map((n: any) => ({
+          id: n.id,
+          user_id: n.user_id,
+          type: n.type,
+          actor_id: n.actor_id,
+          actor: {
+            id: n.actor.id,
+            name: n.actor.name,
+            handle: n.actor.handle,
+            avatar: n.actor.avatar_url,
+            bio: "",
+            stats: { posts: 0, followers: 0, following: 0 },
+            isVerified: n.actor.is_verified,
+          },
+          target_id: n.target_id,
+          read: n.read,
+          created_at: n.created_at,
+        }))
+      );
+    }
+  }, [currentUser.id]);
+
   const fetchPosts = useCallback(async () => {
     const { data: postsData } = await supabase
       .from("posts")
@@ -896,58 +985,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       fetchFollowLists();
     }
   }, [isAuthenticated]);
-
-  const fetchFollowLists = useCallback(async () => {
-    if (!currentUser.id) return;
-
-    try {
-      // Fetch following
-      const { data: followingData } = await supabase
-        .from("follows")
-        .select("following:following_id(*)")
-        .eq("follower_id", currentUser.id);
-
-      if (followingData && followingData.length > 0) {
-        setFollowing(
-          followingData.map((f: any) => ({
-            id: f.following.id,
-            name: f.following.name,
-            handle: f.following.handle,
-            avatar: f.following.avatar_url || "",
-            bio: f.following.bio || "",
-            stats: { posts: 0, followers: 0, following: 0 },
-            isVerified: f.following.is_verified,
-          }))
-        );
-      } else {
-        setFollowing([]);
-      }
-
-      // Fetch followers
-      const { data: followersData } = await supabase
-        .from("follows")
-        .select("follower:follower_id(*)")
-        .eq("following_id", currentUser.id);
-
-      if (followersData && followersData.length > 0) {
-        setFollowers(
-          followersData.map((f: any) => ({
-            id: f.follower.id,
-            name: f.follower.name,
-            handle: f.follower.handle,
-            avatar: f.follower.avatar_url || "",
-            bio: f.follower.bio || "",
-            stats: { posts: 0, followers: 0, following: 0 },
-            isVerified: f.follower.is_verified,
-          }))
-        );
-      } else {
-        setFollowers([]);
-      }
-    } catch (error) {
-      console.error("Error fetching follow lists:", error);
-    }
-  }, [currentUser.id]);
 
   const fetchUserProfile = async (authUser: any) => {
     try {
@@ -1918,43 +1955,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     },
     [currentUser.id]
   );
-
-  const fetchNotifications = useCallback(async () => {
-    const { data } = await supabase
-      .from("notifications")
-      .select(
-        `
-        *,
-        actor:actor_id (id, name, handle, avatar_url, is_verified)
-      `
-      )
-      .eq("user_id", currentUser.id)
-      .order("created_at", { ascending: false })
-      .limit(50);
-
-    if (data) {
-      setNotifications(
-        data.map((n: any) => ({
-          id: n.id,
-          user_id: n.user_id,
-          type: n.type,
-          actor_id: n.actor_id,
-          actor: {
-            id: n.actor.id,
-            name: n.actor.name,
-            handle: n.actor.handle,
-            avatar: n.actor.avatar_url,
-            bio: "",
-            stats: { posts: 0, followers: 0, following: 0 },
-            isVerified: n.actor.is_verified,
-          },
-          target_id: n.target_id,
-          read: n.read,
-          created_at: n.created_at,
-        }))
-      );
-    }
-  }, [currentUser.id]);
 
   const markNotificationAsRead = async (notificationId: string) => {
     await supabase
