@@ -14,6 +14,72 @@ ALTER TABLE public.chat_participants ADD COLUMN IF NOT EXISTS last_read_at TIMES
 ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
+-- 5. RLS Policies for Chats
+-- Enable RLS
+ALTER TABLE public.chats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+
+-- Chats: Users can see chats they are part of
+DROP POLICY IF EXISTS "Users can view their own chats" ON public.chats;
+CREATE POLICY "Users can view their own chats" ON public.chats
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM public.chat_participants
+    WHERE chat_participants.chat_id = chats.id
+    AND chat_participants.user_id = auth.uid()
+  )
+);
+
+-- Chats: Users can create chats
+DROP POLICY IF EXISTS "Users can create chats" ON public.chats;
+CREATE POLICY "Users can create chats" ON public.chats
+FOR INSERT WITH CHECK (true);
+
+-- Chat Participants: Users can view participants of their chats
+DROP POLICY IF EXISTS "Users can view participants of their chats" ON public.chat_participants;
+CREATE POLICY "Users can view participants of their chats" ON public.chat_participants
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM public.chat_participants AS cp
+    WHERE cp.chat_id = chat_participants.chat_id
+    AND cp.user_id = auth.uid()
+  )
+);
+
+-- Chat Participants: Users can add themselves and others to chats
+-- In a more strict app, you'd only allow adding others if you're the creator, but for MVP:
+DROP POLICY IF EXISTS "Users can add participants" ON public.chat_participants;
+CREATE POLICY "Users can add participants" ON public.chat_participants
+FOR INSERT WITH CHECK (true);
+
+-- Messages: Users can view messages in their chats
+DROP POLICY IF EXISTS "Users can view messages in their chats" ON public.messages;
+CREATE POLICY "Users can view messages in their chats" ON public.messages
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM public.chat_participants
+    WHERE chat_participants.chat_id = messages.chat_id
+    AND chat_participants.user_id = auth.uid()
+  )
+);
+
+-- Messages: Users can send messages to their chats
+DROP POLICY IF EXISTS "Users can send messages" ON public.messages;
+CREATE POLICY "Users can send messages" ON public.messages
+FOR INSERT WITH CHECK (auth.uid() = sender_id);
+
+-- Messages: Users can update message status (read receipts)
+DROP POLICY IF EXISTS "Users can update message status" ON public.messages;
+CREATE POLICY "Users can update message status" ON public.messages
+FOR UPDATE USING (
+  EXISTS (
+    SELECT 1 FROM public.chat_participants
+    WHERE chat_participants.chat_id = messages.chat_id
+    AND chat_participants.user_id = auth.uid()
+  )
+) WITH CHECK (true);
+
 -- 4. Enable Realtime for these tables (if not already enabled)
 -- Note: This is usually done in the Supabase Dashboard, but these commands help:
 alter publication supabase_realtime add table public.messages;

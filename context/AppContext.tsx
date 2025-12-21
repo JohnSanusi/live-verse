@@ -268,12 +268,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Supabase auth listener handles this more reliably.
 
   const fetchUsers = useCallback(async () => {
-    const { data, error } = await supabase
+    if (!currentUser.id) return;
+    const { data: profilesData, error } = await supabase
       .from("profiles")
       .select("*")
       .limit(10);
 
-    if (data && !error) {
+    if (profilesData && !error) {
       const { data: myFollows } = await supabase
         .from("follows")
         .select("following_id")
@@ -284,7 +285,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       );
 
       setUsers(
-        data.map((p: any) => ({
+        profilesData.map((p: any) => ({
           id: p.id,
           name: p.name,
           handle: p.handle,
@@ -301,7 +302,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const searchUsers = useCallback(
     async (query: string): Promise<User[]> => {
-      if (!query.trim()) return [];
+      if (!query.trim() || !currentUser.id) return [];
 
       console.log("Executing searchUsers with query:", query);
 
@@ -336,7 +337,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             handle: p.handle,
             avatar: p.avatar_url,
             bio: p.bio,
-            stats: p.stats || { posts: 0, followers: 0, following: 0 },
+            stats: { posts: 0, followers: 0, following: 0 },
             isVerified: p.is_verified,
             isFriend: followingIds.has(p.id),
             status: "offline" as const,
@@ -512,6 +513,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser.id]);
 
   const fetchNotifications = useCallback(async () => {
+    if (!currentUser.id) return;
     const { data } = await supabase
       .from("notifications")
       .select(
@@ -549,6 +551,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser.id]);
 
   const fetchPosts = useCallback(async () => {
+    if (!currentUser.id) return;
     const { data: postsData } = await supabase
       .from("posts")
       .select(
@@ -606,6 +609,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser.id]);
 
   const fetchReelsData = useCallback(async () => {
+    if (!currentUser.id) return;
     const { data: reelsData } = await supabase
       .from("reels")
       .select(
@@ -644,6 +648,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser.id]);
 
   const fetchMarketplace = useCallback(async () => {
+    if (!currentUser.id) return;
     const { data: marketData } = await supabase
       .from("marketplace_items")
       .select(
@@ -660,6 +665,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const fetchStatuses = useCallback(async () => {
+    if (!currentUser.id) return;
     const { data: statusesData } = await supabase
       .from("statuses")
       .select(
