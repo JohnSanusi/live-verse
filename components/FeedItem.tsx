@@ -8,6 +8,7 @@ import {
   Flame,
   Star,
   PartyPopper,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -39,8 +40,10 @@ export const FeedItem = ({
   const [showComments, setShowComments] = useState(false);
   const [showReactions, setShowReactions] = useState(false); // Added showReactions state
   const [commentText, setCommentText] = useState("");
-  const { toggleCommentLike } = useApp();
+  const { toggleCommentLike, deletePost, currentUser } = useApp();
   const { showToast } = useToast();
+
+  const isOwner = currentUser.id === user.id;
 
   // Added reactions array
   const reactions = [
@@ -107,6 +110,22 @@ export const FeedItem = ({
             <p className="text-xs text-muted-foreground">@{user.handle}</p>
           </div>
         </Link>
+
+        {isOwner && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-red-500 hover:bg-red-500/10 h-8 w-8 p-0"
+            onClick={() => {
+              if (confirm("Are you sure you want to delete this post?")) {
+                deletePost(id);
+                showToast("Post deleted", "success");
+              }
+            }}
+          >
+            <Trash2 size={16} />
+          </Button>
+        )}
       </div>
 
       <div className="px-4">
@@ -117,17 +136,22 @@ export const FeedItem = ({
 
       {content.image && (
         <div className="relative aspect-video w-full bg-muted overflow-hidden">
-          {content.image.startsWith("http") ? (
-            <img
-              src={content.image}
-              alt="Content"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground">
-              Image Content
-            </div>
-          )}
+          <img
+            src={content.image}
+            alt="Content"
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+
+      {content.video && (
+        <div className="relative aspect-video w-full bg-black overflow-hidden">
+          <video
+            src={content.video}
+            controls
+            playsInline
+            className="w-full h-full object-contain"
+          />
         </div>
       )}
 

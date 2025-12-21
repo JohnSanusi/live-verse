@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { Loader } from "./Loader";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useApp();
@@ -27,9 +28,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, isLoading, pathname, router]);
 
-  // Show nothing while loading or redirecting
+  // Show loader while initializing
   if (isLoading) {
-    return null;
+    return <Loader />;
   }
 
   // Show nothing while redirecting unauthenticated users

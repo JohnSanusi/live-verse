@@ -154,6 +154,7 @@ interface AppContextType {
   typingUsers: { [chatId: string]: boolean };
   setTyping: (chatId: string, isTyping: boolean) => void;
   createPost: (text: string, media?: File | string) => Promise<void>;
+  deletePost: (postId: string) => Promise<void>;
   createReel: (caption: string, video: File | string) => Promise<void>;
   createMarketplaceItem: (
     name: string,
@@ -227,20 +228,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     darkMode: true,
   });
 
-  // Load settings & user on mount
+  // Load settings on mount
   useEffect(() => {
     const savedSettings = localStorage.getItem("appSettings");
     if (savedSettings) {
       setSettings(JSON.parse(savedSettings));
-    }
-
-    const savedUser = localStorage.getItem("currentUser");
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      if (parsedUser.id) {
-        setCurrentUser(parsedUser);
-        setIsAuthenticated(true);
-      }
     }
   }, []);
 
@@ -258,14 +250,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [settings]);
 
-  // Persist currentUser
-  useEffect(() => {
-    if (currentUser.id) {
-      localStorage.setItem("currentUser", JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem("currentUser");
-    }
-  }, [currentUser]);
+  // No longer persisting currentUser to localStorage to avoid stale state on refresh
+  // Supabase auth listener handles this more reliably.
 
   const fetchUsers = useCallback(async () => {
     const { data, error } = await supabase
@@ -902,76 +888,45 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     [currentUser.id, feeds, reels, statuses]
   );
 
-  // Supabase Auth Listener
+  // Supabase Auth Listener - Simplified and robust
   useEffect(() => {
     let mounted = true;
-    let authInitialized = false;
-
-    const initializeAuth = async () => {
-      // Safety timeout: force loading to false after 5 seconds
-      const timeoutId = setTimeout(() => {
-        if (mounted && !authInitialized) {
-          console.warn(
-            "Auth initialization timed out, forcing loading to false"
-          );
-          setIsLoading(false);
-        }
-      }, 5000);
-
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (session?.user) {
-          if (mounted) setIsAuthenticated(true);
-          // Only fetch if onAuthStateChange hasn't already started it
-          if (!authInitialized) {
-            await fetchUserProfile(session.user);
-          }
-        } else {
-          if (mounted) setIsAuthenticated(false);
-        }
-      } catch (error) {
-        console.error("Auth initialization error:", error);
-      } finally {
-        clearTimeout(timeoutId);
-        if (mounted) {
-          authInitialized = true;
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initializeAuth();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      try {
-        if (session?.user) {
-          setIsAuthenticated(true);
-          await fetchUserProfile(session.user);
-        } else {
-          setIsAuthenticated(false);
-          setCurrentUser({
-            id: "",
-            name: "",
-            handle: "",
-            avatar: "",
-            bio: "",
-            stats: { posts: 0, followers: 0, following: 0 },
-          });
-        }
-      } catch (error) {
-        console.error("Auth state change error:", error);
-      } finally {
-        if (mounted) {
-          authInitialized = true;
-          setIsLoading(false);
-        }
+      if (!mounted) return;
+
+      if (session?.user) {
+        setIsAuthenticated(true);
+        await fetchUserProfile(session.user);
+        if (mounted) setIsLoading(false);
+      } else {
+        setIsAuthenticated(false);
+        setCurrentUser({
+          id: "",
+          name: "",
+          handle: "",
+          avatar: "",
+          bio: "",
+          stats: { posts: 0, followers: 0, following: 0 },
+        });
+        if (mounted) setIsLoading(false);
       }
     });
+
+    // Check initial session
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user && mounted) {
+        setIsAuthenticated(true);
+        await fetchUserProfile(session.user);
+      }
+      if (mounted) setIsLoading(false);
+    };
+    checkSession();
 
     return () => {
       mounted = false;
@@ -1064,7 +1019,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
 
       setCurrentUser(profile);
-      localStorage.setItem("currentUser", JSON.stringify(profile));
     } catch (err) {
       console.error("fetchUserProfile failed:", err);
       // Ensure we set SOME state so loader doesn't hang
@@ -1760,7 +1714,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const tempId = `temp-${Math.random()}`;
 
     // Determine if media is video or image
-    const isVideo = media instanceof File && media.type.startsWith("video/");
+    const isVideo =
+      (media instanceof File && media.type.startsWith("video/")) ||
+      (typeof media === "string" &&
+        (media.includes(".mp4") ||
+          media.includes(".mov") ||
+          media.includes(".webm") ||
+          media.includes("video")));
 
     const optimisticPost: FeedPost = {
       id: tempId,
@@ -1822,6 +1782,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error creating post:", error);
       setFeeds((prev) => prev.filter((p) => p.id !== tempId));
+    }
+  };
+
+  const deletePost = async (postId: string) => {
+    // Optimistic update
+    setFeeds((prev) => prev.filter((post) => post.id !== postId));
+
+    try {
+      const { error } = await supabase.from("posts").delete().eq("id", postId);
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      // Re-fetch posts on error
+      fetchPosts();
     }
   };
 
@@ -2078,6 +2052,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         fetchFollowLists,
         fetchNotifications,
         createPost,
+        deletePost,
         createReel,
         createMarketplaceItem,
         settings,
