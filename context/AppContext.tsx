@@ -258,6 +258,55 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [settings]);
 
+  // Perform Connection Health Check
+  useEffect(() => {
+    const checkConnection = async () => {
+      console.log("[DIAG] Connection Health Check Starting...");
+
+      // 1. Check Config presence
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      console.log("[DIAG] Config Check:", {
+        urlPresent: !!url,
+        urlLength: url?.length || 0,
+        keyPresent: !!key,
+        keyLength: key?.length || 0,
+      });
+
+      if (!url || !key) {
+        console.error("[DIAG] CRITICAL: Supabase Env Vars missing!");
+        return;
+      }
+
+      // 2. Ping Database
+      try {
+        const start = Date.now();
+        const { count, error } = await withTimeout(
+          supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true }),
+          5000,
+          "Health Check Ping"
+        );
+
+        if (error) {
+          console.error("[DIAG] Health Check Ping FAILED:", error);
+        } else {
+          console.log(
+            `[DIAG] Health Check Ping SUCCESS in ${
+              Date.now() - start
+            }ms. Profile count: ${count}`
+          );
+        }
+      } catch (err) {
+        console.error("[DIAG] Health Check Ping TIMEOUT/ERROR:", err);
+      }
+    };
+
+    checkConnection();
+  }, []);
+
   // Persist currentUser
   useEffect(() => {
     if (currentUser.id) {
