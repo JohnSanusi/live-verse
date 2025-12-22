@@ -758,7 +758,76 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         (payload) => {
           if (payload.eventType === "INSERT") {
             // New message received
-            fetchChats();
+            // New message received - Optimistic update for instant unread count
+            const newMessage = payload.new;
+            const isMe = newMessage.sender_id === currentUser.id;
+
+            setChats((prev) => {
+              const chatExists = prev.find((c) => c.id === newMessage.chat_id);
+
+              // If chat doesn't exist locally, fetch to get full details (participants etc)
+              if (!chatExists) {
+                fetchChats();
+                return prev;
+              }
+
+              const formattedMessage: Message = {
+                id: newMessage.id,
+                sender_id: newMessage.sender_id,
+                text: newMessage.text,
+                image: newMessage.image_url,
+                audio: newMessage.audio_url,
+                time: new Date(newMessage.created_at).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+                isMe: isMe,
+                status: newMessage.status || "sent",
+              };
+
+              return prev
+                .map((chat) => {
+                  if (chat.id === newMessage.chat_id) {
+                    // Check for duplicates
+                    if (chat.messages.some((m) => m.id === newMessage.id))
+                      return chat;
+
+                    const newMessages = [...chat.messages, formattedMessage];
+                    const newUnreadCount = isMe
+                      ? 0
+                      : (chat.lastMessage.unread || 0) + 1;
+
+                    return {
+                      ...chat,
+                      messages: newMessages,
+                      lastMessage: {
+                        text: formattedMessage.audio
+                          ? "🎤 Voice Message"
+                          : formattedMessage.image
+                          ? "📷 Photo"
+                          : formattedMessage.text,
+                        time: formattedMessage.time,
+                        unread: newUnreadCount,
+                      },
+                      // Update sort order by pretending it's newer
+                      updated_at: new Date().toISOString(),
+                    };
+                  }
+                  return chat;
+                })
+                .sort((a, b) => {
+                  // Ensure the updated chat moves to top
+                  const timeA =
+                    a.id === newMessage.chat_id
+                      ? new Date()
+                      : new Date(a.updated_at || 0);
+                  const timeB =
+                    b.id === newMessage.chat_id
+                      ? new Date()
+                      : new Date(b.updated_at || 0);
+                  return timeB.getTime() - timeA.getTime();
+                });
+            });
           } else if (payload.eventType === "UPDATE") {
             // Message statused updated (read receipt)
             setChats((prev) =>
