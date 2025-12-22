@@ -2393,6 +2393,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           fetchNotifications();
         },
         createChat,
+        clearChat,
         followers,
         following,
       }}
