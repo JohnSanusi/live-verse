@@ -100,6 +100,7 @@ export interface Chat {
   isMuted?: boolean;
   isPinned?: boolean;
   lastReadAt?: string;
+  updated_at?: string;
 }
 
 export interface FileItem {
