@@ -973,9 +973,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
       });
 
+    // Polling fallback - Ensure sync every 5 seconds (FAILSAFE)
+    const pollingInterval = setInterval(() => {
+      fetchChats();
+      fetchNotifications();
+    }, 5000);
+
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(presenceChannel);
+      clearInterval(pollingInterval);
     };
   }, [
     isAuthenticated,
