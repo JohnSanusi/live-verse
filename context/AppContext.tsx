@@ -386,92 +386,89 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       if (chatsData) {
         const formattedChats = chatsData.map((c: any) => {
-            const otherParticipant = c.chat_participants.find(
-              (p: any) => p.profiles.id !== currentUser.id
-            )?.profiles;
-            
-            const messages = (c.messages || [])
-                .map((m: any) => ({
-                  id: m.id,
-                  sender_id: m.sender_id,
-                  text: m.text,
-                  image: m.image_url,
-                  audio: m.audio_url,
-                  time: new Date(m.created_at).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }),
-                  isMe: m.sender_id === currentUser.id,
-                  status: m.status || "sent",
-                  readTime: m.read_at
-                    ? new Date(m.read_at).toLocaleTimeString()
-                    : undefined,
-                }))
-                .sort(
-                  (a: any, b: any) =>
-                    new Date(a.time).getTime() - new Date(b.time).getTime()
-                );
+          const otherParticipant = c.chat_participants.find(
+            (p: any) => p.profiles.id !== currentUser.id
+          )?.profiles;
 
-            return {
-              id: c.id,
-              user: otherParticipant
-                ? {
-                    id: otherParticipant.id,
-                    name: otherParticipant.name,
-                    avatar: otherParticipant.avatar_url || "",
-                    handle: otherParticipant.handle,
-                    status: "offline",
-                    isVerified: otherParticipant.is_verified,
-                    bio: otherParticipant.bio || "",
-                    stats: { posts: 0, followers: 0, following: 0 },
-                  }
-                : {
-                    id: "unknown",
-                    name: "Unknown User",
-                    avatar: "U",
-                    handle: "unknown",
-                    bio: "",
-                    stats: { posts: 0, followers: 0, following: 0 },
-                  },
-              messages: messages,
-              lastMessage: {
-                text: messages?.[messages.length - 1]?.audio
-                  ? "🎤 Voice Message"
-                  : messages?.[messages.length - 1]?.image
-                  ? "📷 Photo"
-                  : messages?.[messages.length - 1]?.text || "No messages",
-                time: messages?.[messages.length - 1]
-                  ? messages[messages.length - 1].time
-                  : "",
-                unread:
-                  messages?.filter(
-                    (m: any) =>
-                      !m.isMe && m.status !== "read"
-                  ).length || 0,
-              },
-              isGroup: c.is_group,
-              groupName: c.name,
-              groupAvatar: c.avatar_url,
-              description: c.description,
-              members: c.chat_participants.map((p: any) => ({
-                id: p.profiles.id,
-                name: p.profiles.name,
-                avatar: p.profiles.avatar_url || "",
-                handle: p.profiles.handle,
-              })),
-              updated_at: c.updated_at || c.created_at, // SAFE FALLBACK
-            };
-          });
+          const messages = (c.messages || [])
+            .map((m: any) => ({
+              id: m.id,
+              sender_id: m.sender_id,
+              text: m.text,
+              image: m.image_url,
+              audio: m.audio_url,
+              time: new Date(m.created_at).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              isMe: m.sender_id === currentUser.id,
+              status: m.status || "sent",
+              readTime: m.read_at
+                ? new Date(m.read_at).toLocaleTimeString()
+                : undefined,
+            }))
+            .sort(
+              (a: any, b: any) =>
+                new Date(a.time).getTime() - new Date(b.time).getTime()
+            );
+
+          return {
+            id: c.id,
+            user: otherParticipant
+              ? {
+                  id: otherParticipant.id,
+                  name: otherParticipant.name,
+                  avatar: otherParticipant.avatar_url || "",
+                  handle: otherParticipant.handle,
+                  status: "offline",
+                  isVerified: otherParticipant.is_verified,
+                  bio: otherParticipant.bio || "",
+                  stats: { posts: 0, followers: 0, following: 0 },
+                }
+              : {
+                  id: "unknown",
+                  name: "Unknown User",
+                  avatar: "U",
+                  handle: "unknown",
+                  bio: "",
+                  stats: { posts: 0, followers: 0, following: 0 },
+                },
+            messages: messages,
+            lastMessage: {
+              text: messages?.[messages.length - 1]?.audio
+                ? "🎤 Voice Message"
+                : messages?.[messages.length - 1]?.image
+                ? "📷 Photo"
+                : messages?.[messages.length - 1]?.text || "No messages",
+              time: messages?.[messages.length - 1]
+                ? messages[messages.length - 1].time
+                : "",
+              unread:
+                messages?.filter((m: any) => !m.isMe && m.status !== "read")
+                  .length || 0,
+            },
+            isGroup: c.is_group,
+            groupName: c.name,
+            groupAvatar: c.avatar_url,
+            description: c.description,
+            members: c.chat_participants.map((p: any) => ({
+              id: p.profiles.id,
+              name: p.profiles.name,
+              avatar: p.profiles.avatar_url || "",
+              handle: p.profiles.handle,
+            })),
+            updated_at: c.updated_at || c.created_at, // SAFE FALLBACK
+          };
+        });
 
         // Client-side sort to ensure correct order even if DB sort failed
         const sortedChats = formattedChats.sort((a: any, b: any) => {
-            const timeA = new Date(a.updated_at || 0).getTime();
-            const timeB = new Date(b.updated_at || 0).getTime();
-            return timeB - timeA;
+          const timeA = new Date(a.updated_at || 0).getTime();
+          const timeB = new Date(b.updated_at || 0).getTime();
+          return timeB - timeA;
         });
 
         setChats(sortedChats);
-      }
       }
     } catch (error: any) {
       console.error("CRITICAL: Error fetching chats:", error.message || error);
