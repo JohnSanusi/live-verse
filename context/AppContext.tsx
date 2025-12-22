@@ -461,6 +461,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 avatar: p.profiles.avatar_url,
                 handle: p.profiles.handle,
               })),
+              updated_at: c.updated_at,
             };
           })
         );
