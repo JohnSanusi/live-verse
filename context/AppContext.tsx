@@ -466,8 +466,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           })
         );
       }
-    } catch (error) {
-      console.error("Error fetching chats:", error);
+    } catch (error: any) {
+      console.error("CRITICAL: Error fetching chats:", error.message || error);
+      // Retry once after 3 seconds if failure
+      setTimeout(() => {
+        console.log("Retrying fetchChats...");
+        fetchChats();
+      }, 3000);
     }
   }, [currentUser.id]);
 
@@ -1129,13 +1134,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const checkSession = async () => {
-      // Safety timeout for auth initialization (max 10 seconds)
+      // Safety timeout for auth initialization (max 15 seconds)
       const timeoutId = setTimeout(() => {
-        if (mounted) {
-          console.warn("Auth initialization timed out!");
-          setIsLoading(false);
+        if (mounted && isLoading) {
+          console.log("Auth check taking longer than expected...");
+          // Don't force loading false here, let fetchUserProfile finish or fail
         }
-      }, 10000);
+      }, 15000);
 
       try {
         const {
