@@ -63,6 +63,7 @@ export default function ChatDetailPage() {
 
   const chat = chats.find((c) => c.id === chatId);
   const isSomeoneTyping = typingUsers[chatId];
+  const [isInitializing, setIsInitializing] = useState(!chat);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -71,6 +72,14 @@ export default function ChatDetailPage() {
   useEffect(() => {
     scrollToBottom();
   }, [chat?.messages, isSomeoneTyping, imagePreview]);
+
+  useEffect(() => {
+    if (!chat && isInitializing) {
+      // Re-fetch logic or just set initializing false after delay
+      const timer = setTimeout(() => setIsInitializing(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [chat, isInitializing]);
 
   useEffect(() => {
     markChatAsRead(chatId);
@@ -211,22 +220,6 @@ export default function ChatDetailPage() {
       },
     });
   };
-
-  const chat = chats.find((c) => c.id === chatId);
-  const isSomeoneTyping = typingUsers[chatId];
-  const [isInitializing, setIsInitializing] = useState(!chat);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    if (!chat && isInitializing) {
-      // Try to re-fetch chats once to be sure
-      const { fetchChats } = useApp.getState?.() || {}; // This is a bit hacky if not exposed
-      // Better: Use a dedicated re-fetch effect
-    }
-  }, [chat, isInitializing]);
 
   if (!chat) {
     return (
