@@ -370,106 +370,154 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (!currentUser.id) return;
 
     try {
-      const { data: chatsData } = await supabase
+      console.log("Fetching chats: Starting multi-step sequence...");
+
+      // STEP 1: Get all chat IDs for this user
+      const { data: participationData, error: partError } = await supabase
+        .from("chat_participants")
+        .select("chat_id")
+        .eq("user_id", currentUser.id);
+
+      if (partError) throw partError;
+
+      const chatIds = participationData?.map((p) => p.chat_id) || [];
+      console.log(`Found ${chatIds.length} chat participations.`);
+
+      if (chatIds.length === 0) {
+        setChats([]);
+        return;
+      }
+
+      // STEP 2: Fetch Chat Metadata
+      const { data: chatsMeta, error: chatError } = await supabase
         .from("chats")
+        .select("*")
+        .in("id", chatIds);
+
+      if (chatError) throw chatError;
+
+      // STEP 3: Fetch Participants (Profiles)
+      const { data: allParticipants, error: membersError } = await supabase
+        .from("chat_participants")
         .select(
           `
-          *,
-          chat_participants (
-            profiles:user_id (*)
-          ),
-          messages (*)
+          chat_id,
+          profiles:user_id (id, name, avatar_url, handle, is_verified, bio)
         `
         )
-        // Safe Mode: Order by created_at first (always exists) then sort manually
-        .order("created_at", { ascending: false });
+        .in("chat_id", chatIds);
 
-      if (chatsData) {
-        const formattedChats = chatsData.map((c: any) => {
-          const otherParticipant = c.chat_participants.find(
-            (p: any) => p.profiles.id !== currentUser.id
-          )?.profiles;
+      if (membersError) throw membersError;
 
-          const messages = (c.messages || [])
-            .map((m: any) => ({
-              id: m.id,
-              sender_id: m.sender_id,
-              text: m.text,
-              image: m.image_url,
-              audio: m.audio_url,
-              time: new Date(m.created_at).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-              isMe: m.sender_id === currentUser.id,
-              status: m.status || "sent",
-              readTime: m.read_at
-                ? new Date(m.read_at).toLocaleTimeString()
-                : undefined,
-            }))
-            .sort(
-              (a: any, b: any) =>
-                new Date(a.time).getTime() - new Date(b.time).getTime()
-            );
+      // STEP 4: Fetch Messages
+      const { data: messagesData, error: msgError } = await supabase
+        .from("messages")
+        .select("*")
+        .in("chat_id", chatIds)
+        .order("created_at", { ascending: true }); // Get chronological to sort last message right
 
-          return {
-            id: c.id,
-            user: otherParticipant
-              ? {
-                  id: otherParticipant.id,
-                  name: otherParticipant.name,
-                  avatar: otherParticipant.avatar_url || "",
-                  handle: otherParticipant.handle,
-                  status: "offline" as const,
-                  isVerified: otherParticipant.is_verified,
-                  bio: otherParticipant.bio || "",
-                  stats: { posts: 0, followers: 0, following: 0 },
-                }
-              : {
-                  id: "unknown",
-                  name: "Unknown User",
-                  avatar: "U",
-                  handle: "unknown",
-                  bio: "",
-                  status: "offline" as const,
-                  stats: { posts: 0, followers: 0, following: 0 },
-                },
-            messages: messages,
-            lastMessage: {
-              text: messages?.[messages.length - 1]?.audio
+      if (msgError) throw msgError;
+
+      // STEP 5: Stitch it together
+      const builtChats = chatsMeta?.map((chat: any) => {
+        // Find participants for this chat
+        const chatMembers = allParticipants?.filter(
+          (p: any) => p.chat_id === chat.id
+        );
+        const otherParticipant = chatMembers?.find(
+          (p: any) => p.profiles.id !== currentUser.id
+        )?.profiles;
+
+        // Find messages for this chat
+        const chatMessages =
+          messagesData?.filter((m: any) => m.chat_id === chat.id) || [];
+
+        // Format Messages
+        const formattedMessages = chatMessages.map((m: any) => ({
+          id: m.id,
+          sender_id: m.sender_id,
+          text: m.text,
+          image: m.image_url,
+          audio: m.audio_url,
+          time: new Date(m.created_at).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          isMe: m.sender_id === currentUser.id,
+          status: (m.status as "sent" | "delivered" | "read") || "sent",
+          readTime: m.read_at
+            ? new Date(m.read_at).toLocaleTimeString()
+            : undefined,
+        }));
+
+        // Safe User Object
+        const userObj: User = otherParticipant
+          ? {
+              id: otherParticipant.id,
+              name: otherParticipant.name,
+              avatar: otherParticipant.avatar_url || "",
+              handle: otherParticipant.handle,
+              status: "offline" as const, // We will update this via presence
+              isVerified: otherParticipant.is_verified,
+              bio: otherParticipant.bio || "",
+              stats: { posts: 0, followers: 0, following: 0 },
+            }
+          : {
+              id: "unknown",
+              name: "Unknown User",
+              avatar: "U",
+              handle: "unknown",
+              status: "offline" as const,
+              bio: "",
+              stats: { posts: 0, followers: 0, following: 0 },
+            };
+
+        // Last Message Logic
+        const lastMsg = formattedMessages[formattedMessages.length - 1];
+        const unreadCount = formattedMessages.filter(
+          (m: any) => !m.isMe && m.status !== "read"
+        ).length;
+
+        return {
+          id: chat.id,
+          user: userObj,
+          messages: formattedMessages,
+          lastMessage: {
+            text:
+              lastMsg?.text ||
+              (lastMsg?.audio
                 ? "🎤 Voice Message"
-                : messages?.[messages.length - 1]?.image
+                : lastMsg?.image
                 ? "📷 Photo"
-                : messages?.[messages.length - 1]?.text || "No messages",
-              time: messages?.[messages.length - 1]
-                ? messages[messages.length - 1].time
-                : "",
-              unread:
-                messages?.filter((m: any) => !m.isMe && m.status !== "read")
-                  .length || 0,
-            },
-            isGroup: c.is_group,
-            groupName: c.name,
-            groupAvatar: c.avatar_url,
-            description: c.description,
-            members: c.chat_participants.map((p: any) => ({
+                : "No messages"),
+            time: lastMsg?.time || "",
+            unread: unreadCount,
+          },
+          isGroup: chat.is_group,
+          groupName: chat.name,
+          groupAvatar: chat.avatar_url,
+          description: chat.description,
+          members:
+            chatMembers?.map((p: any) => ({
               id: p.profiles.id,
               name: p.profiles.name,
               avatar: p.profiles.avatar_url || "",
               handle: p.profiles.handle,
-            })),
-            updated_at: c.updated_at || c.created_at, // SAFE FALLBACK
-          };
-        });
+            })) || [],
+          updated_at: chat.updated_at || chat.created_at, // Fallback
+          // Use the REAL latest message time if updated_at is stale
+          lastActive: lastMsg
+            ? new Date(
+                chatMessages[chatMessages.length - 1].created_at
+              ).getTime()
+            : new Date(chat.created_at).getTime(),
+        };
+      });
 
-        // Client-side sort to ensure correct order even if DB sort failed
-        const sortedChats = formattedChats.sort((a: any, b: any) => {
-          const timeA = new Date(a.updated_at || 0).getTime();
-          const timeB = new Date(b.updated_at || 0).getTime();
-          return timeB - timeA;
-        });
-
-        setChats(sortedChats);
+      // Valid Sort
+      if (builtChats) {
+        const sorted = builtChats.sort((a, b) => b.lastActive - a.lastActive);
+        setChats(sorted as Chat[]);
       }
     } catch (error: any) {
       console.error("CRITICAL: Error fetching chats:", error.message || error);
