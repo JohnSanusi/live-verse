@@ -63,6 +63,7 @@ export interface Message {
   status?: "sent" | "delivered" | "read";
   readTime?: string;
   image?: string;
+  audio?: string;
 }
 
 export interface Status {
@@ -142,8 +143,10 @@ interface AppContextType {
   sendMessage: (
     chat_id: string,
     text: string,
-    media?: File | string
+    media?: File | string,
+    audio?: File | string
   ) => Promise<void>;
+  clearChat: (chatId: string) => Promise<void>;
   addFile: () => void;
   toggleFollow: (userId: string) => Promise<void>;
   addContact: (user: User) => void;
@@ -418,6 +421,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                   sender_id: m.sender_id,
                   text: m.text,
                   image: m.image_url,
+                  audio: m.audio_url,
                   time: new Date(m.created_at).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -433,8 +437,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     new Date(a.time).getTime() - new Date(b.time).getTime()
                 ),
               lastMessage: {
-                text:
-                  c.messages?.[c.messages.length - 1]?.text || "No messages",
+                text: c.messages?.[c.messages.length - 1]?.audio_url
+                  ? "🎤 Voice Message"
+                  : c.messages?.[c.messages.length - 1]?.image_url
+                  ? "📷 Photo"
+                  : c.messages?.[c.messages.length - 1]?.text || "No messages",
                 time: c.messages?.[c.messages.length - 1]
                   ? new Date(
                       c.messages[c.messages.length - 1].created_at
@@ -1326,6 +1333,42 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           );
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+        },
+        (payload: any) => {
+          const updatedMessage = payload.new;
+          if (updatedMessage.status === "read") {
+            setChats((prev) =>
+              prev.map((chat) => {
+                if (chat.id === updatedMessage.chat_id) {
+                  return {
+                    ...chat,
+                    messages: chat.messages.map((m) =>
+                      m.id === updatedMessage.id
+                        ? {
+                            ...m,
+                            status: "read",
+                            readTime: updatedMessage.read_at
+                              ? new Date(
+                                  updatedMessage.read_at
+                                ).toLocaleTimeString()
+                              : m.readTime,
+                          }
+                        : m
+                    ),
+                  };
+                }
+                return chat;
+              })
+            );
+          }
+        }
+      )
       .subscribe();
 
     return () => {
@@ -1413,7 +1456,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const sendMessage = useCallback(
-    async (chatId: string, text: string, media?: File | string) => {
+    async (
+      chatId: string,
+      text: string,
+      media?: File | string,
+      audio?: File | string
+    ) => {
       const tempId = `temp-${Math.random()}`;
       const optimisticMsg: Message = {
         id: tempId,
@@ -1431,6 +1479,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             : typeof media === "string"
             ? media
             : undefined,
+        audio:
+          audio instanceof File
+            ? URL.createObjectURL(audio)
+            : typeof audio === "string"
+            ? audio
+            : undefined,
       };
 
       // Update chats locally
@@ -1440,7 +1494,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             ? {
                 ...chat,
                 messages: [...chat.messages, optimisticMsg],
-                lastMessage: { text: text || "Image", time: "Just now" },
+                lastMessage: {
+                  text:
+                    text ||
+                    (audio
+                      ? "🎤 Voice Message"
+                      : media
+                      ? "📷 Photo"
+                      : "No messages"),
+                  time: "Just now",
+                },
               }
             : chat
         )
@@ -1448,11 +1511,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       try {
         let mediaUrl = "";
+        let voiceUrl = "";
+
         if (media instanceof File) {
           const uploaded = await uploadFile("messages", media);
           if (uploaded) mediaUrl = uploaded;
         } else if (typeof media === "string") {
           mediaUrl = media;
+        }
+
+        if (audio instanceof File) {
+          const uploaded = await uploadFile("voice_notes", audio);
+          if (uploaded) voiceUrl = uploaded;
+        } else if (typeof audio === "string") {
+          voiceUrl = audio;
         }
 
         const { data, error } = await supabase
@@ -1462,6 +1534,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             sender_id: currentUser.id,
             text,
             image_url: mediaUrl,
+            audio_url: voiceUrl,
           })
           .select()
           .single();
@@ -1488,10 +1561,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                   ...chat,
                   messages: chat.messages.map((m) =>
                     m.id === tempId
-                      ? { ...m, id: data.id, image: mediaUrl, status: "sent" }
+                      ? {
+                          ...m,
+                          id: data.id,
+                          image: mediaUrl,
+                          audio: voiceUrl,
+                          status: "sent",
+                        }
                       : m
                   ),
-                  lastMessage: { text: text || "Image", time: "Just now" },
+                  lastMessage: {
+                    text:
+                      text ||
+                      (voiceUrl
+                        ? "🎤 Voice Message"
+                        : mediaUrl
+                        ? "📷 Photo"
+                        : "No messages"),
+                    time: "Just now",
+                  },
                 };
               }
               return chat;
@@ -1518,11 +1606,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const markChatAsRead = useCallback(
     async (chatId: string) => {
+      // Use the RPC function if possible, or regular update
       const { error } = await supabase
         .from("messages")
-        .update({ status: "read" })
+        .update({ status: "read", read_at: new Date().toISOString() })
         .eq("chat_id", chatId)
-        .neq("sender_id", currentUser.id);
+        .neq("sender_id", currentUser.id)
+        .neq("status", "read");
 
       if (error) {
         console.error("Error marking chat as read:", error.message);
@@ -1534,7 +1624,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           if (chat.id === chatId) {
             return {
               ...chat,
-              messages: chat.messages.map((m) => ({ ...m, status: "read" })),
+              messages: chat.messages.map((m) =>
+                m.sender_id !== currentUser.id ? { ...m, status: "read" } : m
+              ),
               lastMessage: { ...chat.lastMessage, unread: 0 },
             };
           }
@@ -1544,6 +1636,31 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     },
     [currentUser.id]
   );
+
+  const clearChat = async (chatId: string) => {
+    try {
+      const { error } = await supabase
+        .from("messages")
+        .delete()
+        .eq("chat_id", chatId);
+
+      if (error) throw error;
+
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                messages: [],
+                lastMessage: { text: "No messages", time: "" },
+              }
+            : chat
+        )
+      );
+    } catch (error) {
+      console.error("Error clearing chat:", error);
+    }
+  };
 
   const markStatusAsSeen = useCallback((statusId: string) => {
     setStatuses((prev) => {

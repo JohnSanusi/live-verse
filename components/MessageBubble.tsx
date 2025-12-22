@@ -13,6 +13,7 @@ interface MessageBubbleProps {
     status?: "sent" | "delivered" | "read";
     readTime?: string;
     image?: string;
+    audio?: string;
   };
 }
 
@@ -41,6 +42,15 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
             alt="Sent image"
             className="rounded-xl mb-2 max-h-60 w-full object-cover border border-white/10"
           />
+        )}
+        {message.audio && (
+          <div className="mb-2 min-w-[200px]">
+            <audio
+              src={message.audio}
+              controls
+              className="h-10 w-full rounded-lg"
+            />
+          </div>
         )}
         <p className="text-sm">{text}</p>
         <p

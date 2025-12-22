@@ -19,6 +19,8 @@ import {
   Shield,
   Bell,
   Trash2,
+  Square,
+  StopCircle,
 } from "lucide-react";
 import { EliteBadge } from "@/components/EliteBadge";
 import { Button } from "@/components/ui/Button";
@@ -36,6 +38,7 @@ export default function ChatDetailPage() {
     chats,
     sendMessage,
     markChatAsRead,
+    clearChat,
     typingUsers,
     setTyping,
     currentUser,
@@ -46,6 +49,14 @@ export default function ChatDetailPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showOptions, setShowOptions] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+
+  // Voice recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -119,6 +130,58 @@ export default function ChatDetailPage() {
     fileInputRef.current?.click();
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: "audio/webm",
+        });
+        const audioFile = new File([audioBlob], "voice-note.webm", {
+          type: "audio/webm",
+        });
+
+        await sendMessage(chatId, "", undefined, audioFile);
+        showToast("Voice message sent!", "success");
+
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error("Error starting recording:", err);
+      showToast("Could not access microphone", "error");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
   const handleCall = (type: "voice" | "video") => {
     confirm({
       title: type === "voice" ? "Voice Call" : "Video Call",
@@ -138,13 +201,49 @@ export default function ChatDetailPage() {
         chat?.user.name
       }?`,
       confirmText: action,
-      onConfirm: () => {
-        showToast(`${action} successful!`, "success");
+      onConfirm: async () => {
+        if (action === "Clear Chat") {
+          await clearChat(chatId);
+          showToast("Chat cleared", "success");
+        } else {
+          showToast(`${action} successful!`, "success");
+        }
       },
     });
   };
 
-  if (!chat) return <div className="p-4 text-center">Chat not found</div>;
+  const chat = chats.find((c) => c.id === chatId);
+  const isSomeoneTyping = typingUsers[chatId];
+  const [isInitializing, setIsInitializing] = useState(!chat);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    if (!chat && isInitializing) {
+      // Try to re-fetch chats once to be sure
+      const { fetchChats } = useApp.getState?.() || {}; // This is a bit hacky if not exposed
+      // Better: Use a dedicated re-fetch effect
+    }
+  }, [chat, isInitializing]);
+
+  if (!chat) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen animate-pulse">
+        <div className="h-12 w-12 rounded-full border-4 border-primary border-t-transparent animate-spin mb-4" />
+        <p className="text-muted-foreground font-medium">Loading chat...</p>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-4"
+          onClick={() => router.push("/chats")}
+        >
+          Back to Chats
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen bg-background pb-safe">
@@ -497,9 +596,14 @@ export default function ChatDetailPage() {
           </Button>
           <div className="flex-1 relative">
             <Input
-              placeholder="Type a message..."
-              className="pr-10 rounded-full border-none bg-secondary/50 focus-visible:ring-1"
-              value={text}
+              placeholder={isRecording ? "Recording..." : "Type a message..."}
+              className={`pr-10 rounded-full border-none bg-secondary/50 focus-visible:ring-1 ${
+                isRecording ? "text-red-500 font-bold" : ""
+              }`}
+              value={
+                isRecording ? `Recording: ${formatTime(recordingTime)}` : text
+              }
+              readOnly={isRecording}
               onChange={(e) => {
                 setText(e.target.value);
                 handleTyping();
@@ -509,13 +613,18 @@ export default function ChatDetailPage() {
               type="button"
               variant="ghost"
               size="sm"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-full text-muted-foreground hover:text-primary active-scale"
-              onClick={() => {
-                sendMessage(chatId, "🎤 [Voice Message] (0:15)");
-                showToast("Voice message sent!", "success");
-              }}
+              className={`absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-full active-scale ${
+                isRecording
+                  ? "text-red-500 bg-red-500/10"
+                  : "text-muted-foreground hover:text-primary"
+              }`}
+              onClick={isRecording ? stopRecording : startRecording}
             >
-              <Mic size={22} />
+              {isRecording ? (
+                <StopCircle size={22} className="animate-pulse" />
+              ) : (
+                <Mic size={22} />
+              )}
             </Button>
           </div>
           <Button
