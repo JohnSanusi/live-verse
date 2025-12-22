@@ -6,7 +6,7 @@ import { ChatListItem } from "@/components/ChatListItem";
 import { Search, Edit, Archive, FolderArchive, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { useApp } from "@/context/AppContext";
+import { useApp, User } from "@/context/AppContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/Toast";
 import { useRouter } from "next/navigation";
