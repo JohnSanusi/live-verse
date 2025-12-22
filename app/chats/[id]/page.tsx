@@ -60,6 +60,7 @@ export default function ChatDetailPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingChannelRef = useRef<any>(null);
 
   const chat = chats.find((c) => c.id === chatId);
   const isSomeoneTyping = typingUsers[chatId];
@@ -88,6 +89,8 @@ export default function ChatDetailPage() {
       config: { broadcast: { self: false } },
     });
 
+    typingChannelRef.current = channel;
+
     channel
       .on("broadcast", { event: "typing" }, ({ payload }) => {
         setTyping(chatId, payload.isTyping);
@@ -95,25 +98,32 @@ export default function ChatDetailPage() {
       .subscribe();
 
     return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
       supabase.removeChannel(channel);
+      typingChannelRef.current = null;
     };
   }, [chatId, markChatAsRead, setTyping]);
 
   const handleTyping = () => {
-    const channel = supabase.channel(`chat_type_${chatId}`);
-    channel.send({
+    if (!typingChannelRef.current) return;
+
+    typingChannelRef.current.send({
       type: "broadcast",
       event: "typing",
-      payload: { isTyping: true, user_id: chat?.user.id },
+      payload: { isTyping: true, user_id: currentUser.id },
     });
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      channel.send({
-        type: "broadcast",
-        event: "typing",
-        payload: { isTyping: false, user_id: chat?.user.id },
-      });
+      if (typingChannelRef.current) {
+        typingChannelRef.current.send({
+          type: "broadcast",
+          event: "typing",
+          payload: { isTyping: false, user_id: currentUser.id },
+        });
+      }
     }, 3000);
   };
 
