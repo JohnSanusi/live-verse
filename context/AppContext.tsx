@@ -2091,7 +2091,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const createNotification = async (
     targetUserId: string,
-    type: "like" | "comment" | "follow" | "unfollow",
+    type: "like" | "comment" | "follow" | "unfollow" | "message",
     targetId?: string
   ) => {
     if (!currentUser.id || targetUserId === currentUser.id) return;
