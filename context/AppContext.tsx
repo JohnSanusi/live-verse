@@ -381,14 +381,37 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           messages (*)
         `
         )
-        .order("updated_at", { ascending: false });
+        // Safe Mode: Order by created_at first (always exists) then sort manually
+        .order("created_at", { ascending: false });
 
       if (chatsData) {
-        setChats(
-          chatsData.map((c: any) => {
+        const formattedChats = chatsData.map((c: any) => {
             const otherParticipant = c.chat_participants.find(
               (p: any) => p.profiles.id !== currentUser.id
             )?.profiles;
+            
+            const messages = (c.messages || [])
+                .map((m: any) => ({
+                  id: m.id,
+                  sender_id: m.sender_id,
+                  text: m.text,
+                  image: m.image_url,
+                  audio: m.audio_url,
+                  time: new Date(m.created_at).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                  isMe: m.sender_id === currentUser.id,
+                  status: m.status || "sent",
+                  readTime: m.read_at
+                    ? new Date(m.read_at).toLocaleTimeString()
+                    : undefined,
+                }))
+                .sort(
+                  (a: any, b: any) =>
+                    new Date(a.time).getTime() - new Date(b.time).getTime()
+                );
+
             return {
               id: c.id,
               user: otherParticipant
@@ -410,45 +433,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     bio: "",
                     stats: { posts: 0, followers: 0, following: 0 },
                   },
-              messages: (c.messages || [])
-                .map((m: any) => ({
-                  id: m.id,
-                  sender_id: m.sender_id,
-                  text: m.text,
-                  image: m.image_url,
-                  audio: m.audio_url,
-                  time: new Date(m.created_at).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }),
-                  isMe: m.sender_id === currentUser.id,
-                  status: m.status || "sent",
-                  readTime: m.read_at
-                    ? new Date(m.read_at).toLocaleTimeString()
-                    : undefined,
-                }))
-                .sort(
-                  (a: any, b: any) =>
-                    new Date(a.time).getTime() - new Date(b.time).getTime()
-                ),
+              messages: messages,
               lastMessage: {
-                text: c.messages?.[c.messages.length - 1]?.audio_url
+                text: messages?.[messages.length - 1]?.audio
                   ? "🎤 Voice Message"
-                  : c.messages?.[c.messages.length - 1]?.image_url
+                  : messages?.[messages.length - 1]?.image
                   ? "📷 Photo"
-                  : c.messages?.[c.messages.length - 1]?.text || "No messages",
-                time: c.messages?.[c.messages.length - 1]
-                  ? new Date(
-                      c.messages[c.messages.length - 1].created_at
-                    ).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
+                  : messages?.[messages.length - 1]?.text || "No messages",
+                time: messages?.[messages.length - 1]
+                  ? messages[messages.length - 1].time
                   : "",
                 unread:
-                  c.messages?.filter(
+                  messages?.filter(
                     (m: any) =>
-                      m.sender_id !== currentUser.id && m.status !== "read"
+                      !m.isMe && m.status !== "read"
                   ).length || 0,
               },
               isGroup: c.is_group,
@@ -458,13 +456,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               members: c.chat_participants.map((p: any) => ({
                 id: p.profiles.id,
                 name: p.profiles.name,
-                avatar: p.profiles.avatar_url,
+                avatar: p.profiles.avatar_url || "",
                 handle: p.profiles.handle,
               })),
-              updated_at: c.updated_at,
+              updated_at: c.updated_at || c.created_at, // SAFE FALLBACK
             };
-          })
-        );
+          });
+
+        // Client-side sort to ensure correct order even if DB sort failed
+        const sortedChats = formattedChats.sort((a: any, b: any) => {
+            const timeA = new Date(a.updated_at || 0).getTime();
+            const timeB = new Date(b.updated_at || 0).getTime();
+            return timeB - timeA;
+        });
+
+        setChats(sortedChats);
+      }
       }
     } catch (error: any) {
       console.error("CRITICAL: Error fetching chats:", error.message || error);
