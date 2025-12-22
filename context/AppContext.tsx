@@ -214,6 +214,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [reels, setReels] = useState<any[]>([]);
   const [marketplaceItems, setMarketplaceItems] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [typingUsers, setTypingUsers] = useState<{ [chatId: string]: boolean }>(
     {}
   );
@@ -322,16 +323,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
           console.log("searchUsers found", data?.length || 0, "results.");
 
-          const { data: myFollows } = await supabase
+          // Privacy: Only return users who follow us or we follow them
+          const { data: followData } = await supabase
             .from("follows")
-            .select("following_id")
-            .eq("follower_id", currentUser.id);
+            .select("follower_id, following_id")
+            .or(
+              `follower_id.eq.${currentUser.id},following_id.eq.${currentUser.id}`
+            );
 
-          const followingIds = new Set(
-            myFollows?.map((f: any) => f.following_id) || []
+          const friendIds = new Set(
+            followData?.flatMap((f: any) => [f.follower_id, f.following_id]) ||
+              []
           );
+          friendIds.delete(currentUser.id); // Remove self
 
-          return data.map((p: any) => ({
+          const filteredData = data.filter((p: any) => friendIds.has(p.id));
+
+          return filteredData.map((p: any) => ({
             id: p.id,
             name: p.name,
             handle: p.handle,
@@ -339,7 +347,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             bio: p.bio,
             stats: { posts: 0, followers: 0, following: 0 },
             isVerified: p.is_verified,
-            isFriend: followingIds.has(p.id),
+            isFriend: true,
             status: "offline" as const,
           }));
         })();
@@ -391,7 +399,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     name: otherParticipant.name,
                     avatar: otherParticipant.avatar_url,
                     handle: otherParticipant.handle,
-                    status: "online",
+                    status: "offline",
                     isVerified: otherParticipant.is_verified,
                     bio: otherParticipant.bio || "",
                     stats: { posts: 0, followers: 0, following: 0 },
@@ -843,8 +851,49 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       )
       .subscribe();
 
+    // 2. Presence Tracking (Online Status)
+    const presenceChannel = supabase.channel("online-users", {
+      config: { presence: { key: currentUser.id } },
+    });
+
+    presenceChannel
+      .on("presence", { event: "sync" }, () => {
+        const newState = presenceChannel.presenceState();
+        const onlineIds = new Set(Object.keys(newState));
+        setOnlineUsers(onlineIds);
+
+        // Update local users/chats status reactively
+        setUsers((prev) =>
+          prev.map((u) => ({
+            ...u,
+            status: onlineIds.has(u.id)
+              ? ("online" as const)
+              : ("offline" as const),
+          }))
+        );
+        setChats((prev) =>
+          prev.map((c) => ({
+            ...c,
+            user: {
+              ...c.user,
+              status: onlineIds.has(c.user.id)
+                ? ("online" as const)
+                : ("offline" as const),
+            },
+          }))
+        );
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await presenceChannel.track({
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(presenceChannel);
     };
   }, [
     isAuthenticated,
@@ -1003,6 +1052,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const checkSession = async () => {
+      // Safety timeout for auth initialization (max 10 seconds)
+      const timeoutId = setTimeout(() => {
+        if (mounted) {
+          console.warn("Auth initialization timed out!");
+          setIsLoading(false);
+        }
+      }, 10000);
+
       try {
         const {
           data: { session },
@@ -1014,6 +1071,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       } catch (err) {
         console.error("Auth initialization failed:", err);
       } finally {
+        clearTimeout(timeoutId);
         if (mounted) setIsLoading(false);
       }
     };
@@ -1083,9 +1141,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           .eq("follower_id", authUser.id),
       ]);
 
-      const postsCount = postsRes.count;
-      const followersCount = followersRes.count;
-      const followingCount = followingRes.count;
+      const postsCount = postsRes?.count || 0;
+      const followersCount = followersRes?.count || 0;
+      const followingCount = followingRes?.count || 0;
 
       const profile: User = {
         id: authUser.id,
@@ -1114,9 +1172,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
 
       setCurrentUser(profile);
+      setIsLoading(false); // Success!
     } catch (err) {
       console.error("fetchUserProfile failed:", err);
-      // Ensure we set SOME state so loader doesn't hang
+      // Fallback: Set currentUser even if stats fail to prevent hung loader
+      if (authUser) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          id: authUser.id,
+          name:
+            authUser.user_metadata?.full_name ||
+            authUser.email?.split("@")[0] ||
+            "User",
+        }));
+      }
       setIsLoading(false);
     }
   };
@@ -1235,6 +1304,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           setChats((prev) =>
             prev.map((chat) => {
               if (chat.id === newMessage.chat_id) {
+                // Deduplicate: check if message ID already exists
+                if (chat.messages.some((m) => m.id === newMessage.id)) {
+                  return chat;
+                }
+
                 return {
                   ...chat,
                   messages: [...chat.messages, formattedMessage],
@@ -1396,19 +1470,32 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
         if (data) {
           setChats((prev) =>
-            prev.map((chat) =>
-              chat.id === chatId
-                ? {
+            prev.map((chat) => {
+              if (chat.id === chatId) {
+                // If the message was already added by Realtime, just remove the temp one
+                const alreadyAdded = chat.messages.some(
+                  (m) => m.id === data.id
+                );
+                if (alreadyAdded) {
+                  return {
                     ...chat,
-                    messages: chat.messages.map((m) =>
-                      m.id === tempId
-                        ? { ...m, id: data.id, image: mediaUrl, status: "sent" }
-                        : m
-                    ),
-                    lastMessage: { text: text || "Image", time: "Just now" },
-                  }
-                : chat
-            )
+                    messages: chat.messages.filter((m) => m.id !== tempId),
+                  };
+                }
+
+                // Otherwise replace temp with real message
+                return {
+                  ...chat,
+                  messages: chat.messages.map((m) =>
+                    m.id === tempId
+                      ? { ...m, id: data.id, image: mediaUrl, status: "sent" }
+                      : m
+                  ),
+                  lastMessage: { text: text || "Image", time: "Just now" },
+                };
+              }
+              return chat;
+            })
           );
         }
       } catch (error) {
@@ -2098,11 +2185,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
         if (partError) throw partError;
 
-        await fetchChats(); // Refresh local chats state
+        // Force a fresh fetch of all chats to ensure we have full metadata
+        await fetchChats();
+
+        // Wait a small moment for state to settle
         return newChat.id;
       }
-    } catch (error) {
-      console.error("Error creating chat:", error);
+    } catch (error: any) {
+      console.error("Error creating chat:", error.message);
     }
 
     return null;
