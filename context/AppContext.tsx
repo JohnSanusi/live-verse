@@ -395,7 +395,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 ? {
                     id: otherParticipant.id,
                     name: otherParticipant.name,
-                    avatar: otherParticipant.avatar_url,
+                    avatar: otherParticipant.avatar_url || "",
                     handle: otherParticipant.handle,
                     status: "offline",
                     isVerified: otherParticipant.is_verified,
@@ -1134,14 +1134,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const checkSession = async () => {
-      // Safety timeout for auth initialization (max 15 seconds)
-      const timeoutId = setTimeout(() => {
-        if (mounted && isLoading) {
-          console.log("Auth check taking longer than expected...");
-          // Don't force loading false here, let fetchUserProfile finish or fail
-        }
-      }, 15000);
-
+      // Removed safety timeout to prevent false positives and unnecessary reloads
       try {
         const {
           data: { session },
@@ -1153,7 +1146,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       } catch (err) {
         console.error("Auth initialization failed:", err);
       } finally {
-        clearTimeout(timeoutId);
         if (mounted) setIsLoading(false);
       }
     };

@@ -379,7 +379,7 @@ export default function ChatDetailPage() {
                     <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-4xl font-black">
                       {chat.groupName?.[0]}
                     </div>
-                  ) : chat.user.avatar.length > 2 ? (
+                  ) : (chat.user.avatar || "").length > 2 ? (
                     <img
                       src={chat.user.avatar}
                       alt={chat.user.name}
