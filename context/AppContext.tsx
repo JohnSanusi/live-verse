@@ -1049,14 +1049,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [
     isAuthenticated,
-    fetchPosts,
-    fetchReelsData,
-    fetchMarketplace,
-    fetchStatuses,
-    fetchUsers,
-    fetchChats,
-    fetchNotifications,
-    fetchFollowLists,
+    // fetchPosts, // Removed to prevent infinite loop
+    // fetchReelsData,
+    // fetchMarketplace,
+    // fetchStatuses,
+    // fetchUsers,
+    // fetchChats,
+    // fetchNotifications,
+    // fetchFollowLists,
     currentUser.id,
   ]);
 
