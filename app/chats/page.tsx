@@ -22,7 +22,10 @@ export default function ChatsPage() {
     toggleArchiveChat,
     createGroupChat,
     fetchFollowLists,
+    searchUsers,
   } = useApp();
+  const [globalResults, setGlobalResults] = useState<User[]>([]);
+  const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -45,6 +48,21 @@ export default function ChatsPage() {
   useEffect(() => {
     fetchFollowLists();
   }, [fetchFollowLists]);
+
+  useEffect(() => {
+    const searchTimer = setTimeout(async () => {
+      if (contactSearch.length >= 2) {
+        setIsSearchingGlobal(true);
+        const results = await searchUsers(contactSearch);
+        setGlobalResults(results);
+        setIsSearchingGlobal(false);
+      } else {
+        setGlobalResults([]);
+      }
+    }, 500);
+
+    return () => clearTimeout(searchTimer);
+  }, [contactSearch, searchUsers]);
 
   const handleStartChat = async (userId: string) => {
     const chatId = await createChat(userId);
@@ -73,11 +91,14 @@ export default function ChatsPage() {
     (c, index, self) => index === self.findIndex((t) => t.id === c.id) // Remove duplicates
   );
 
-  const filteredContacts = allContacts.filter(
-    (c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.handle.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredContacts =
+    contactSearch.length >= 2
+      ? globalResults
+      : allContacts.filter(
+          (c) =>
+            c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
+            c.handle.toLowerCase().includes(contactSearch.toLowerCase())
+        );
 
   const handleCreateGroup = () => {
     if (!groupName.trim() || selectedMembers.length === 0) {
@@ -150,13 +171,16 @@ export default function ChatsPage() {
               </Button>
             </div>
 
-            <div className="mb-4">
+            <div className="mb-4 relative">
               <Input
-                placeholder="Search followers or following..."
+                placeholder="Search anyone to message..."
                 value={contactSearch}
                 onChange={(e) => setContactSearch(e.target.value)}
                 className="bg-secondary/30 h-10 rounded-xl border-none focus:ring-1 focus:ring-primary/30 text-sm"
               />
+              {isSearchingGlobal && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              )}
             </div>
 
             {isCreatingGroup && (

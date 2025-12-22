@@ -326,23 +326,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
           console.log("searchUsers found", data?.length || 0, "results.");
 
-          // Privacy: Only return users who follow us or we follow them
-          const { data: followData } = await supabase
+          // Get our following list to mark friends
+          const { data: follows } = await supabase
             .from("follows")
-            .select("follower_id, following_id")
-            .or(
-              `follower_id.eq.${currentUser.id},following_id.eq.${currentUser.id}`
-            );
-
-          const friendIds = new Set(
-            followData?.flatMap((f: any) => [f.follower_id, f.following_id]) ||
-              []
+            .select("following_id")
+            .eq("follower_id", currentUser.id);
+          const followingIds = new Set(
+            follows?.map((f) => f.following_id) || []
           );
-          friendIds.delete(currentUser.id); // Remove self
 
-          const filteredData = data.filter((p: any) => friendIds.has(p.id));
-
-          return filteredData.map((p: any) => ({
+          // Mark if they are friends/followed, but show all (Instagram style)
+          return data.map((p: any) => ({
             id: p.id,
             name: p.name,
             handle: p.handle,
@@ -350,7 +344,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             bio: p.bio,
             stats: { posts: 0, followers: 0, following: 0 },
             isVerified: p.is_verified,
-            isFriend: true,
+            isFriend: followingIds.has(p.id),
             status: "offline" as const,
           }));
         })();
@@ -794,7 +788,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "chats" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "chat_participants",
+          filter: `user_id=eq.${currentUser.id}`,
+        },
         () => fetchChats()
       )
       .on(
@@ -1276,106 +1275,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Supabase Real-time Message Listener
-  useEffect(() => {
-    if (!isAuthenticated || !currentUser.id) return;
-
-    const channel = supabase
-      .channel("messages")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-        },
-        async (payload: any) => {
-          const newMessage = payload.new;
-
-          // Only handle if message belongs to one of our chats
-          // (In a real app, you'd filter by chat members)
-
-          const formattedMessage: Message = {
-            id: newMessage.id,
-            sender_id: newMessage.sender_id,
-            text: newMessage.text,
-            time: new Date(newMessage.created_at).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            }),
-            isMe: newMessage.sender_id === currentUser.id,
-            status: "delivered",
-          };
-
-          setChats((prev) =>
-            prev.map((chat) => {
-              if (chat.id === newMessage.chat_id) {
-                // Deduplicate: check if message ID already exists
-                if (chat.messages.some((m) => m.id === newMessage.id)) {
-                  return chat;
-                }
-
-                return {
-                  ...chat,
-                  messages: [...chat.messages, formattedMessage],
-                  lastMessage: {
-                    text: formattedMessage.text,
-                    time: formattedMessage.time,
-                    unread: formattedMessage.isMe
-                      ? 0
-                      : (chat.lastMessage.unread || 0) + 1,
-                  },
-                };
-              }
-              return chat;
-            })
-          );
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "messages",
-        },
-        (payload: any) => {
-          const updatedMessage = payload.new;
-          if (updatedMessage.status === "read") {
-            setChats((prev) =>
-              prev.map((chat) => {
-                if (chat.id === updatedMessage.chat_id) {
-                  return {
-                    ...chat,
-                    messages: chat.messages.map((m) =>
-                      m.id === updatedMessage.id
-                        ? {
-                            ...m,
-                            status: "read",
-                            readTime: updatedMessage.read_at
-                              ? new Date(
-                                  updatedMessage.read_at
-                                ).toLocaleTimeString()
-                              : m.readTime,
-                          }
-                        : m
-                    ),
-                  };
-                }
-                return chat;
-              })
-            );
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isAuthenticated, currentUser.id]);
-
   const addComment = useCallback(
     async (feedId: string, text: string) => {
       const tempId = `temp-${Math.random()}`;
@@ -1540,6 +1439,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           .single();
 
         if (error) throw error;
+
+        // Update chat's updated_at and send notification (Instagram style)
+        const chat = chats.find((c) => c.id === chatId);
+        if (chat) {
+          await Promise.all([
+            supabase
+              .from("chats")
+              .update({ updated_at: new Date().toISOString() })
+              .eq("id", chatId),
+            // Re-fetch chats on the recipient's side is handled by Realtime,
+            // but we can send a dedicated notification to trigger an alert.
+            createNotification(chat.user.id, "message", chatId),
+          ]);
+        }
 
         if (data) {
           setChats((prev) =>
