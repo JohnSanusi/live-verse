@@ -424,9 +424,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const chatMembers = allParticipants?.filter(
           (p: any) => p.chat_id === chat.id
         );
-        const otherParticipant = chatMembers?.find(
-          (p: any) => p.profiles.id !== currentUser.id
-        )?.profiles;
+
+        let otherParticipantData = chatMembers?.find((p: any) => {
+          const profile = Array.isArray(p.profiles)
+            ? p.profiles[0]
+            : p.profiles;
+          return profile && profile.id !== currentUser.id;
+        })?.profiles;
+
+        const otherParticipant = Array.isArray(otherParticipantData)
+          ? otherParticipantData[0]
+          : otherParticipantData;
 
         // Find messages for this chat
         const chatMessages =
@@ -453,13 +461,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Safe User Object
         const userObj: User = otherParticipant
           ? {
-              id: otherParticipant.id,
-              name: otherParticipant.name,
-              avatar: otherParticipant.avatar_url || "",
-              handle: otherParticipant.handle,
+              id: (otherParticipant as any).id,
+              name: (otherParticipant as any).name,
+              avatar: (otherParticipant as any).avatar_url || "",
+              handle: (otherParticipant as any).handle,
               status: "offline" as const, // We will update this via presence
-              isVerified: otherParticipant.is_verified,
-              bio: otherParticipant.bio || "",
+              isVerified: (otherParticipant as any).is_verified,
+              bio: (otherParticipant as any).bio || "",
               stats: { posts: 0, followers: 0, following: 0 },
             }
           : {
@@ -503,6 +511,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               name: p.profiles.name,
               avatar: p.profiles.avatar_url || "",
               handle: p.profiles.handle,
+              bio: "",
+              stats: { posts: 0, followers: 0, following: 0 },
             })) || [],
           updated_at: chat.updated_at || chat.created_at, // Fallback
           // Use the REAL latest message time if updated_at is stale
